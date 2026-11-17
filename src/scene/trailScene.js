@@ -6,6 +6,7 @@ import {
   createWaterfallShaderMaterial,
   createRiverShaderMaterial,
   enhanceTerrainMaterialWithShader,
+  enhanceRockMaterialWithShader,
   enhanceBarkWithMossShader,
   enhanceFluffyLeafMaterial,
   enhanceFluffyDepthMaterial,
@@ -107,6 +108,7 @@ export class TrailScene {
       wood: loadTex('/textures/wood_planks.jpg', 1, 1),
       woodBeam: loadTex('/textures/wood_planks.jpg', 1, 3),
       rock: loadTex('/textures/cliff_rock.jpg', 3, 3),
+      waterfallRock: loadTex('/textures/waterfall_basalt.jpg', 1, 1),
       bark: loadTex('/textures/tree_bark.jpg', 1, 1),
       barkBirch: loadTex('/textures/bark_birch_pale.jpg', 1, 1),
       barkCedar: loadTex('/textures/bark_red_cedar.jpg', 1, 1),
@@ -1054,35 +1056,91 @@ export class TrailScene {
     return geo;
   }
 
+  /**
+   * Geometría angulosa estratificada para riscos y saltos de cascada (con repisas y fisuras).
+   */
+  createStratifiedCliffGeometry(seed = 17) {
+    const geo = new THREE.IcosahedronGeometry(1, 3);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+
+      // Estratos horizontales escalonados y fracturas verticales angulosas
+      const strataStep = Math.sin(y * 10.5 + seed * 0.7) * 0.085 + Math.cos(y * 19.0 + x * 4.0) * 0.04;
+      const shelfTerrace = (Math.round((y + 1.0) * 3.5) / 3.5 - (y + 1.0)) * 0.22;
+      const cragNoise =
+        Math.sin(x * 5.3 + seed) * Math.cos(z * 4.7 - seed * 0.5) * 0.14 +
+        Math.abs(Math.sin((x + z) * 6.5 + y * 2.2)) * 0.09;
+
+      const factor = 0.92 + strataStep + shelfTerrace + cragNoise;
+      const baseWiden = y < 0 ? 1.0 + Math.abs(y) * 0.18 : 1.0;
+      pos.setXYZ(i, x * factor * baseWiden, y * (0.96 + cragNoise * 0.25), z * factor * baseWiden);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+
   buildWaterfall() {
     const pt = this.boardwalkCurve.getPointAt(this.stationTs[3]);
     this.createDeckPlatform(pt.x, pt.y - 0.02, pt.z, 5.2, 4.6, -0.74);
 
-    const rockMat = new THREE.MeshStandardMaterial({
-      map: this.textures.rock,
-      bumpMap: this.textures.rock,
-      bumpScale: 0.16,
-      roughness: 0.92
+    const waterfallRockMat = new THREE.MeshStandardMaterial({
+      map: this.textures.waterfallRock,
+      bumpMap: this.textures.waterfallRock,
+      bumpScale: 0.18,
+      roughness: 0.84,
+      metalness: 0.04
     });
+    enhanceRockMaterialWithShader(waterfallRockMat);
 
-    // Risco escalonado anguloso (con vértices perturbados para quitar forma ovoide)
-    const rockLayout = [
-      { x: 19.8, y: 4.5, z: -20.2, sx: 3.1, sy: 6.4, sz: 2.9 },
-      { x: 29.8, y: 5.1, z: -18.2, sx: 3.3, sy: 7.2, sz: 3.0 },
-      { x: 25.3, y: 6.3, z: -22.8, sx: 6.0, sy: 8.6, sz: 2.8 },
-      { x: 25.0, y: 8.8, z: -20.2, sx: 3.6, sy: 1.8, sz: 2.6 },
-      { x: 20.4, y: 1.6, z: -15.4, sx: 1.8, sy: 1.2, sz: 1.5 },
-      { x: 27.6, y: 1.7, z: -14.0, sx: 1.9, sy: 1.3, sz: 1.6 }
+    // Risco basáltico estratificado alrededor de la garganta de agua y poza
+    const cliffLayout = [
+      // Paredes laterales y macizo trasero principal
+      { x: 19.4, y: 4.3, z: -20.2, sx: 3.3, sy: 6.2, sz: 3.1, ry: 0.35, seed: 11 },
+      { x: 29.8, y: 4.9, z: -18.2, sx: 3.4, sy: 6.8, sz: 3.1, ry: -0.45, seed: 23 },
+      { x: 25.8, y: 5.9, z: -23.0, sx: 5.6, sy: 8.2, sz: 2.9, ry: 0.12, seed: 37 },
+      // Saliente superior por donde brota la cascada y repisas recedidas detrás del chorro
+      { x: 25.7, y: 8.95, z: -19.8, sx: 3.5, sy: 1.35, sz: 2.3, ry: -0.3, seed: 43 },
+      { x: 25.2, y: 4.8, z: -20.2, sx: 2.5, sy: 1.5, sz: 1.7, ry: 0.25, seed: 51 },
+      { x: 27.1, y: 3.1, z: -19.4, sx: 2.3, sy: 1.4, sz: 1.6, ry: -0.6, seed: 67 },
+      // Contrafuertes rocosos bajos flanqueando la caída
+      { x: 20.3, y: 2.0, z: -16.8, sx: 2.0, sy: 2.2, sz: 1.8, ry: 0.7, seed: 73 },
+      { x: 28.6, y: 2.2, z: -15.6, sx: 2.0, sy: 2.3, sz: 1.8, ry: -0.8, seed: 89 }
     ];
 
-    rockLayout.forEach((r, idx) => {
-      const geo = this.perturbGeometry(new THREE.DodecahedronGeometry(1, 2), 0.24, idx + 7);
-      const rock = new THREE.Mesh(geo, rockMat);
-      rock.position.set(r.x, r.y, r.z);
-      rock.scale.set(r.sx, r.sy, r.sz);
+    cliffLayout.forEach((c) => {
+      const geo = this.createStratifiedCliffGeometry(c.seed);
+      const rock = new THREE.Mesh(geo, waterfallRockMat);
+      rock.position.set(c.x, c.y, c.z);
+      rock.scale.set(c.sx, c.sy, c.sz);
+      rock.rotation.y = c.ry;
       rock.castShadow = true;
       rock.receiveShadow = true;
       this.scene.add(rock);
+    });
+
+    // Rocas ribereñas húmedas alrededor de la poza y arranque del arroyo (despejando el centro de caída)
+    const poolBoulders = [
+      [20.0, 0.85, -14.8, 1.3, 0.82, 1.1, 0.3],
+      [21.4, 0.52, -13.1, 0.9, 0.56, 0.84, 1.1],
+      [27.6, 0.9, -13.9, 1.4, 0.86, 1.2, -0.5],
+      [26.3, 0.48, -12.4, 0.88, 0.5, 0.82, 2.0],
+      [18.9, 0.7, -11.4, 1.05, 0.65, 0.92, 0.8],
+      [22.4, 0.42, -11.9, 0.72, 0.42, 0.68, -1.2],
+      [26.6, 0.58, -17.3, 1.05, 0.65, 0.95, 0.5],
+      [21.4, 0.62, -17.7, 1.15, 0.74, 1.0, -0.4]
+    ];
+    poolBoulders.forEach(([bx, by, bz, sx, sy, sz, ry], idx) => {
+      const bGeo = this.createStratifiedCliffGeometry(100 + idx * 13);
+      const boulder = new THREE.Mesh(bGeo, waterfallRockMat);
+      boulder.position.set(bx, by, bz);
+      boulder.scale.set(sx, sy, sz);
+      boulder.rotation.y = ry;
+      boulder.castShadow = true;
+      boulder.receiveShadow = true;
+      this.scene.add(boulder);
     });
 
     // Cortina principal de cascada con Shader GLSL personalizado
@@ -1342,11 +1400,12 @@ export class TrailScene {
     enhanceFoliageWithWindShader(fernMat, this.uTime);
 
     const rockMat = new THREE.MeshStandardMaterial({
-      map: this.textures.rock,
-      bumpMap: this.textures.rock,
+      map: this.textures.waterfallRock,
+      bumpMap: this.textures.waterfallRock,
       bumpScale: 0.12,
-      roughness: 0.9
+      roughness: 0.88
     });
+    enhanceRockMaterialWithShader(rockMat);
 
     const blossomColors = [0xe46b8f, 0xf3bf42, 0xf7f5e8, 0xe88b58];
     const blossomMats = blossomColors.map(

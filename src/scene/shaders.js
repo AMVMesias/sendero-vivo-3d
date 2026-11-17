@@ -408,6 +408,76 @@ export function enhanceTerrainMaterialWithShader(material, { meadowTex, pebblesT
 }
 
 /**
+ * Proyección triplanar en espacio de mundo para rocas y riscos de la cascada:
+ * elimina estiramiento UV, añade estratos minerales, musgo en caras superiores
+ * y oscurecimiento con brillo húmedo (baja rugosidad) junto al agua.
+ */
+export function enhanceRockMaterialWithShader(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         varying vec3 vRockWorldPos;
+         varying vec3 vRockWorldNormal;`
+      )
+      .replace(
+        '#include <worldpos_vertex>',
+        `#include <worldpos_vertex>
+         vRockWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+         vRockWorldNormal = normalize(mat3(modelMatrix) * objectNormal);`
+      );
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         varying vec3 vRockWorldPos;
+         varying vec3 vRockWorldNormal;
+         ${NOISE_GLSL}`
+      )
+      .replace(
+        '#include <map_fragment>',
+        `#ifdef USE_MAP
+           vec3 blendW = pow(abs(normalize(vRockWorldNormal)), vec3(4.0));
+           blendW /= max(0.001, blendW.x + blendW.y + blendW.z);
+
+           vec3 tx = texture2D(map, vRockWorldPos.zy * 0.24).rgb;
+           vec3 ty = texture2D(map, vRockWorldPos.xz * 0.24).rgb;
+           vec3 tz = texture2D(map, vRockWorldPos.xy * 0.24).rgb;
+           vec3 triRock = tx * blendW.x + ty * blendW.y + tz * blendW.z;
+
+           float strata = sin(vRockWorldPos.y * 5.2 + fbm(vRockWorldPos.xz * 0.45) * 4.2) * 0.5 + 0.5;
+           float grain = valueNoise(vRockWorldPos.xy * 1.4 + vRockWorldPos.zy * 1.4);
+           triRock *= mix(0.84, 1.12, strata * 0.65 + grain * 0.35);
+
+           float topFace = smoothstep(0.32, 0.8, vRockWorldNormal.y);
+           float mossPatch = smoothstep(0.38, 0.72, fbm(vRockWorldPos.xz * 0.65 + vec2(vRockWorldPos.y * 0.25)));
+           vec3 mossTint = mix(vec3(0.16, 0.32, 0.14), vec3(0.28, 0.44, 0.18), grain);
+           triRock = mix(triRock, mossTint, clamp(topFace * mossPatch * 0.76, 0.0, 0.72));
+
+           float distWf = length(vRockWorldPos.xz - vec2(24.2, -16.8));
+           float wfWetness = (1.0 - smoothstep(2.0, 8.5, distWf)) * (1.0 - smoothstep(0.5, 9.5, vRockWorldPos.y));
+           float mistWetness = 1.0 - smoothstep(0.9, 2.6, vRockWorldPos.y);
+           float totalWet = max(wfWetness, mistWetness * 0.68);
+           triRock *= mix(1.0, 0.56, totalWet);
+
+           diffuseColor.rgb *= triRock;
+         #endif`
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+         float distWfR = length(vRockWorldPos.xz - vec2(24.2, -16.8));
+         float wfWetR = (1.0 - smoothstep(2.0, 8.5, distWfR)) * (1.0 - smoothstep(0.5, 9.5, vRockWorldPos.y));
+         float totalWetR = max(wfWetR, (1.0 - smoothstep(0.9, 2.6, vRockWorldPos.y)) * 0.68);
+         roughnessFactor = mix(roughnessFactor, 0.24, totalWetR);`
+      );
+  };
+  material.customProgramCacheKey = () => 'rock-triplanar-wet-v1';
+}
+
+/**
  * Añade musgo orgánico húmedo en la base y caras sombreadas de los troncos mediante shader.
  */
 export function enhanceBarkWithMossShader(material) {
