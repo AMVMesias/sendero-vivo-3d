@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sendero Vivo 3D — Ecoturismo Comunitario y Naturaleza Accesible</title>
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+  <body>
+    <div id="scene-container" aria-label="Entorno inmersivo 3D del sendero comunitario"></div>
+
+    <div id="live-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="hud">
+      <!-- Barra superior -->
+      <header class="topbar">
+        <div class="brand-card">
+          <div class="brand-icon" data-icon="brandEmblem" aria-hidden="true"></div>
+          <div>
+            <h1 class="brand-title">Sendero Vivo 3D</h1>
+            <p class="brand-subtitle">Ecoturismo Comunitario · Ruta Accesible 250 m</p>
+          </div>
+        </div>
+
+        <nav class="topbar-actions" aria-label="Opciones principales">
+          <button
+            id="btn-toggle-audio"
+            type="button"
+            class="btn"
+            aria-pressed="true"
+            title="Activar o silenciar el paisaje sonoro del bosque"
+          >
+            <span class="btn-icon" data-icon="audioOn"></span>
+            <span class="btn-label">Sonido natural</span>
+          </button>
+          <button
+            id="btn-toggle-a11y"
+            type="button"
+            class="btn"
+            aria-expanded="false"
+            aria-controls="a11y-panel"
+          >
+            <span class="btn-icon" data-icon="accessibility"></span>
+            <span class="btn-label">Accesibilidad</span>
+          </button>
+          <button id="btn-open-lab" type="button" class="btn">
+            <span class="btn-icon" data-icon="document"></span>
+            <span class="btn-label">Ficha Lab 1</span>
+          </button>
+        </nav>
+      </header>
+
+      <!-- Zona media: tarjeta de estación + panel de accesibilidad -->
+      <main class="middle-area">
+        <section class="story-column" aria-label="Información de la estación actual">
+          <div class="story-toolbar">
+            <button
+              id="btn-toggle-story"
+              type="button"
+              class="btn btn-compact"
+              aria-expanded="true"
+              aria-controls="story-card"
+            >
+              <span class="btn-icon" data-icon="story"></span>
+              <span class="btn-label">Ocultar relato</span>
+            </button>
+            <span id="trail-distance-badge" class="pill-tag distance-pill">Tramo: 0 m / 250 m</span>
+          </div>
+
+          <article id="story-card" class="story-card">
+            <div class="station-badge-row">
+              <span id="station-number-badge" class="pill-tag">Estación 1 de 6</span>
+              <span id="station-territory-tag" class="pill-tag">Bosque de Niebla</span>
+            </div>
+
+            <h2 id="station-title" class="story-title">Mirador de la Neblina</h2>
+            <p id="station-subtitle" class="story-subtitle"></p>
+
+            <div class="guide-box">
+              <div>
+                <div id="guide-name" class="guide-name"></div>
+                <div id="guide-role" class="guide-role"></div>
+              </div>
+              <button id="btn-narrate" type="button" class="btn btn-primary btn-compact">
+                <span class="btn-icon" data-icon="voice"></span>
+                <span class="btn-label">Escuchar relato</span>
+              </button>
+            </div>
+
+            <div id="station-paragraphs" class="story-paragraphs"></div>
+
+            <div id="station-highlights" class="highlights-grid"></div>
+
+            <div class="note-block">
+              <strong>Enfoque intercultural</strong>
+              <span id="station-cultural-note"></span>
+            </div>
+
+            <div class="note-block warm">
+              <strong>Diseño inclusivo en este punto</strong>
+              <span id="station-a11y-note"></span>
+            </div>
+
+            <div class="narrator-controls">
+              <button id="btn-narrate-pause" type="button" class="btn btn-compact" hidden>
+                <span class="btn-icon" data-icon="pause"></span>
+                <span class="btn-label">Pausar voz</span>
+              </button>
+              <button id="btn-narrate-stop" type="button" class="btn btn-compact" hidden>
+                <span class="btn-icon" data-icon="stop"></span>
+                <span class="btn-label">Detener voz</span>
+              </button>
+            </div>
+          </article>
+        </section>
+
+        <!-- Panel lateral de accesibilidad -->
+        <aside id="a11y-panel" class="a11y-panel" aria-label="Configuración de accesibilidad" hidden>
+          <div class="panel-header">
+            <h2>Accesibilidad y confort</h2>
+            <button id="btn-close-a11y" type="button" class="btn btn-compact" aria-label="Cerrar panel de accesibilidad">
+              <span class="btn-icon" data-icon="close"></span>
+            </button>
+          </div>
+
+          <div class="setting-group">
+            <span class="setting-label">Altura de perspectiva</span>
+            <div class="segmented" role="group" aria-label="Altura de cámara">
+              <button id="btn-eye-wheelchair" type="button" class="btn btn-active" aria-pressed="true">
+                <span class="btn-icon" data-icon="wheelchair"></span>
+                <span class="btn-label">Silla (1,15 m)</span>
+              </button>
+              <button id="btn-eye-standing" type="button" class="btn" aria-pressed="false">
+                <span class="btn-icon" data-icon="standing"></span>
+                <span class="btn-label">De pie (1,65 m)</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <span class="setting-label">Tamaño de texto</span>
+            <div class="segmented" role="group" aria-label="Tamaño de letra">
+              <button type="button" class="btn btn-active" data-font-scale="1">Normal</button>
+              <button type="button" class="btn" data-font-scale="1.18">Grande</button>
+              <button type="button" class="btn" data-font-scale="1.35">Muy grande</button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <span class="setting-label">Contraste y movimiento</span>
+            <div class="segmented">
+              <button id="btn-contrast" type="button" class="btn" aria-pressed="false">
+                <span class="btn-icon" data-icon="contrast"></span>
+                <span class="btn-label">Alto contraste</span>
+              </button>
+              <button id="btn-reduced-motion" type="button" class="btn" aria-pressed="false">
+                <span class="btn-icon" data-icon="reducedMotion"></span>
+                <span class="btn-label">Reducir movimiento</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label for="volume-slider" class="setting-label">Volumen ambiental del bosque</label>
+            <div class="slider-row">
+              <span class="btn-icon" data-icon="volumeLow" aria-hidden="true"></span>
+              <input id="volume-slider" type="range" min="0" max="100" value="55" />
+              <span id="volume-value">55%</span>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <span class="setting-label">Velocidad de narración en voz alta</span>
+            <div class="segmented">
+              <button type="button" class="btn btn-active" data-speech-rate="0.88">Pausada</button>
+              <button type="button" class="btn" data-speech-rate="1.05">Normal</button>
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      <!-- Barra inferior de navegación -->
+      <footer class="bottom-dock" aria-label="Navegación por el sendero">
+        <div class="dock-group" role="group" aria-label="Control de mirada y avance continuo">
+          <button id="btn-look-left" type="button" class="btn btn-compact" title="Girar vista a la izquierda">
+            <span class="btn-icon" data-icon="lookLeft"></span>
+            <span class="btn-label">Izquierda</span>
+          </button>
+          <button id="btn-look-center" type="button" class="btn btn-compact" title="Centrar vista en el sendero">
+            <span class="btn-icon" data-icon="recenter"></span>
+            <span class="btn-label">Centrar</span>
+          </button>
+          <button id="btn-look-right" type="button" class="btn btn-compact" title="Girar vista a la derecha">
+            <span class="btn-icon" data-icon="lookRight"></span>
+            <span class="btn-label">Derecha</span>
+          </button>
+          <button id="btn-step-back" type="button" class="btn btn-compact" title="Retroceder por la pasarela (Tecla S o Abajo)">
+            <span class="btn-icon" data-icon="trailBack"></span>
+            <span class="btn-label">Retroceder</span>
+          </button>
+          <button id="btn-step-forward" type="button" class="btn btn-compact" title="Avanzar por la pasarela (Tecla W o Arriba)">
+            <span class="btn-icon" data-icon="trailForward"></span>
+            <span class="btn-label">Avanzar</span>
+          </button>
+        </div>
+
+        <div class="dock-group station-nav-group">
+          <button id="btn-prev-station" type="button" class="btn btn-compact" aria-label="Estación anterior">
+            <span class="btn-icon" data-icon="arrowLeft"></span>
+          </button>
+          <div id="station-pills" class="station-pills" role="tablist" aria-label="Estaciones del sendero"></div>
+          <button id="btn-next-station" type="button" class="btn btn-compact" aria-label="Siguiente estación">
+            <span class="btn-icon" data-icon="arrowRight"></span>
+          </button>
+        </div>
+
+        <div class="dock-group">
+          <button id="btn-autotour" type="button" class="btn btn-compact" aria-pressed="false">
+            <span class="btn-icon" data-icon="play"></span>
+            <span class="btn-label">Paseo guiado</span>
+          </button>
+          <button id="btn-quick-perspective" type="button" class="btn btn-compact" aria-pressed="true">
+            <span class="btn-icon" data-icon="wheelchair"></span>
+            <span class="btn-label">Vista 1,15 m</span>
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <div id="scene-tooltip" class="scene-tooltip" hidden></div>
+
+    <!-- Modal de bienvenida -->
+    <div id="welcome-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+      <div class="modal-card">
+        <span class="pill-tag">Prototipo Inclusivo · Laboratorio 1</span>
+        <h2 id="welcome-title">Bienvenido a Sendero Vivo 3D</h2>
+        <p>
+          Recorrido inmersivo de <strong>250 metros de ecoturismo comunitario accesible</strong> pensado para
+          <strong>personas con movilidad reducida y adultos mayores</strong> que no pueden acceder físicamente a senderos rurales o de montaña.
+        </p>
+        <ul class="modal-list">
+          <li><strong>6 estaciones conectadas:</strong> salta con teclas <code>1–6</code> o avanza tramo a tramo con <code>W / S</code> o botones.</li>
+          <li><strong>Paseo guiado automático:</strong> recorre la pasarela sin mover el ratón.</li>
+          <li><strong>Audio natural y narración por voz:</strong> escucha el bosque, la cascada y los relatos comunitarios.</li>
+          <li><strong>Perspectiva ergonómica:</strong> alterna entre altura de silla de ruedas (1,15 m) y de pie (1,65 m).</li>
+        </ul>
+        <div class="modal-actions">
+          <button id="btn-start-tour" type="button" class="btn btn-primary">
+            <span class="btn-icon" data-icon="play"></span>
+            <span class="btn-label">Iniciar recorrido accesible</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Ficha académica Lab 1 -->
+    <div id="lab-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="lab-title" hidden>
+      <div class="modal-card">
+        <span class="pill-tag">Interculturalidad · Laboratorio 1</span>
+        <h2 id="lab-title">Ficha del Proyecto y Grupo Vulnerable</h2>
+        <p>
+          <strong>Grupo vulnerable seleccionado:</strong> Personas con movilidad reducida (usuarios de silla de ruedas, bastón o andador) y adultos mayores con limitaciones de desplazamiento.
+        </p>
+        <p><strong>Necesidades identificadas y atendidas:</strong></p>
+        <ul class="modal-list">
+          <li><strong>Acceso a la naturaleza y ocio:</strong> pasarela de madera continua de 250 m libre de escalones y terrenos irregulares.</li>
+          <li><strong>Comodidad motriz y vestibular:</strong> avance paso a paso o teletransporte por estaciones, modo paseo guiado, botones de mirada sin arrastre y reducción de movimiento.</li>
+          <li><strong>Accesibilidad visual y cognitiva:</strong> texto escalable, alto contraste, Lectura Fácil y narración por voz en español.</li>
+          <li><strong>Vínculo intercultural:</strong> voces comunitarias sobre cosmovisión territorial, árboles abuelos, plantas medicinales, cuidado del agua, aves y economía solidaria.</li>
+        </ul>
+        <div class="modal-actions">
+          <button id="btn-close-lab" type="button" class="btn btn-primary">
+            Volver al recorrido
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
