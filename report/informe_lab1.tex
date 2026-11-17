@@ -10,7 +10,6 @@
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage{tikz}
-\usepackage{tcolorbox}
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{tabularx}
@@ -81,168 +80,124 @@
 \begin{document}
 
 % ============================================================================
-% PORTADA TEMÁTICA INSTITUCIONAL ESPE
+% PORTADA MINIMALISTA INSTITUCIONAL ESPE (INSPIRACIÓN TEMÁTICA SUTIL)
 % ============================================================================
 \begin{titlepage}
 \thispagestyle{empty}
 
-% Decoración temática ecológica con TikZ (cordillera, niebla y pasarela curva)
+% Trazo minimalista lineal al pie (sin rellenos pesados ni tarjetas)
 \begin{tikzpicture}[remember picture, overlay]
-  % Franja superior en verde bosque y madera cálida
-  \fill[forestDark] (current page.north west) rectangle ([yshift=-0.55cm]current page.north east);
-  \fill[woodWarm] ([yshift=-0.55cm]current page.north west) rectangle ([yshift=-0.70cm]current page.north east);
+  % Línea superior muy fina
+  \draw[forestDark, line width=1.4pt]
+    ([xshift=2.54cm, yshift=-1.65cm]current page.north west)
+    -- ([xshift=-2.54cm, yshift=-1.65cm]current page.north east);
 
-  % Marco fino sutil inspirado en sendero y hoja
-  \draw[forestSage, line width=0.9pt]
-    ([xshift=1.15cm, yshift=-1.15cm]current page.north west)
-    rectangle
-    ([xshift=-1.15cm, yshift=1.15cm]current page.south east);
+  % Silueta lineal minimalista de montaña y sendero al pie de página
+  \draw[forestSage!80, line width=0.8pt]
+    ([xshift=2.54cm, yshift=1.95cm]current page.south west)
+    .. controls ([xshift=6.5cm, yshift=2.55cm]current page.south west)
+    and ([xshift=9.2cm, yshift=1.85cm]current page.south west)
+    .. ([xshift=12.4cm, yshift=2.45cm]current page.south west)
+    .. controls ([xshift=15.0cm, yshift=2.90cm]current page.south west)
+    and ([xshift=17.2cm, yshift=2.05cm]current page.south west)
+    .. ([xshift=-2.54cm, yshift=2.15cm]current page.south east);
 
-  % Siluetas suaves de montañas de bosque de niebla al pie de página
-  \fill[forestMist]
-    ([yshift=0cm]current page.south west)
-    -- ([yshift=3.4cm]current page.south west)
-    .. controls ([xshift=4.5cm, yshift=4.5cm]current page.south west)
-    and ([xshift=9cm, yshift=2.2cm]current page.south west)
-    .. ([xshift=13.5cm, yshift=3.6cm]current page.south west)
-    .. controls ([xshift=17cm, yshift=4.6cm]current page.south west)
-    and ([xshift=19.5cm, yshift=2.9cm]current page.south west)
-    .. ([yshift=3.2cm]current page.south east)
-    -- (current page.south east) -- cycle;
-
-  \fill[forestSage!35]
-    (current page.south west)
-    -- ([yshift=2.1cm]current page.south west)
-    .. controls ([xshift=5cm, yshift=1.2cm]current page.south west)
-    and ([xshift=10.5cm, yshift=2.9cm]current page.south west)
-    .. ([xshift=15.5cm, yshift=1.7cm]current page.south west)
-    .. controls ([xshift=18.5cm, yshift=1.0cm]current page.south west)
-    and ([xshift=20.2cm, yshift=2.1cm]current page.south west)
-    .. ([yshift=2.2cm]current page.south east)
-    -- (current page.south east) -- cycle;
-
-  % Trazo curvo simbólico de la pasarela accesible
-  \draw[woodWarm!75, line width=2pt]
-    ([yshift=1.2cm]current page.south west)
-    .. controls ([xshift=6cm, yshift=2.3cm]current page.south west)
-    and ([xshift=14cm, yshift=0.5cm]current page.south west)
-    .. ([yshift=1.55cm]current page.south east);
-  \draw[forestDark, line width=1.1pt, dashed]
-    ([yshift=1.05cm]current page.south west)
-    .. controls ([xshift=6cm, yshift=2.15cm]current page.south west)
-    and ([xshift=14cm, yshift=0.35cm]current page.south west)
-    .. ([yshift=1.40cm]current page.south east);
+  \draw[woodWarm!75, line width=0.9pt]
+    ([xshift=2.54cm, yshift=1.65cm]current page.south west)
+    .. controls ([xshift=7.5cm, yshift=2.05cm]current page.south west)
+    and ([xshift=13.5cm, yshift=1.45cm]current page.south west)
+    .. ([xshift=-2.54cm, yshift=1.85cm]current page.south east);
 \end{tikzpicture}
 
 \centering
-\vspace*{0.1cm}
-{\fontsize{14}{17}\selectfont\bfseries\color{forestDark} UNIVERSIDAD DE LAS FUERZAS ARMADAS ESPE\par}
+\vspace*{0.15cm}
+{\fontsize{13.5}{16}\selectfont\bfseries\color{inkDark} UNIVERSIDAD DE LAS FUERZAS ARMADAS ESPE\par}
+\vspace{0.4cm}
+
+\includegraphics[width=3.2cm]{assets/espe_logo.jpg}\par
 \vspace{0.35cm}
 
-\includegraphics[width=3.25cm]{assets/espe_logo.jpg}\par
+{\fontsize{11.5}{14}\selectfont\bfseries\color{inkDark} DEPARTAMENTO DE CIENCIAS DE LA COMUNICACIÓN\par}
 \vspace{0.35cm}
 
-{\fontsize{12}{15}\selectfont\bfseries\color{inkDark} DEPARTAMENTO DE CIENCIAS DE LA COMUNICACIÓN\par}
-\vspace{0.3cm}
-
-{\fontsize{11}{14}\selectfont\bfseries CARRERA\par}
-{\fontsize{11.5}{14}\selectfont INGENIERÍA EN SOFTWARE\par}
+{\fontsize{10.5}{13}\selectfont\bfseries CARRERA\par}
+{\fontsize{11}{14}\selectfont INGENIERÍA EN SOFTWARE\par}
 \vspace{0.25cm}
 
-{\fontsize{11}{14}\selectfont\bfseries ASIGNATURA\par}
-{\fontsize{11.5}{14}\selectfont DESARROLLO DE SOFTWARE APLICADO AL DOMINIO DE INTERCULTURALIDAD\par}
-\vspace{0.35cm}
+{\fontsize{10.5}{13}\selectfont\bfseries ASIGNATURA\par}
+{\fontsize{11}{14}\selectfont DESARROLLO DE SOFTWARE APLICADO AL DOMINIO DE INTERCULTURALIDAD\par}
 
-\begin{tcolorbox}[
-  colback=forestMist!70,
-  colframe=forestMid,
-  arc=3mm,
-  boxrule=1pt,
-  left=10pt,
-  right=10pt,
-  top=8pt,
-  bottom=8pt,
-  width=0.92\textwidth
-]
-\centering
-{\fontsize{10.5}{13}\selectfont\bfseries\color{woodWarm} LABORATORIO 1: PROTOTIPO DE APLICACIÓN INMERSIVA INCLUSIVA\par}
-\vspace{0.15cm}
-{\fontsize{13.5}{17}\selectfont\bfseries\color{forestDark} SENDERO VIVO 3D: ECOTURISMO COMUNITARIO Y NATURALEZA ACCESIBLE\par}
+\vspace{0.45cm}
+% Divisor minimalista con emblema botánico lineal
+\begin{tikzpicture}
+  \draw[forestSage, line width=0.6pt] (-5.8,0) -- (-0.55,0);
+  \draw[forestSage, line width=0.6pt] (0.55,0) -- (5.8,0);
+  \draw[forestMid, line width=0.85pt] (0,-0.16) .. controls (0.22,-0.02) and (0.22,0.16) .. (0,0.22)
+    .. controls (-0.22,0.16) and (-0.22,-0.02) .. (0,-0.16);
+  \draw[forestMid, line width=0.6pt] (0,-0.22) -- (0,0.16);
+\end{tikzpicture}\par
+\vspace{0.42cm}
+
+{\fontsize{10}{13}\selectfont\bfseries\color{woodWarm} LABORATORIO 1\par}
+\vspace{0.18cm}
+{\fontsize{14}{18}\selectfont\bfseries\color{forestDark} SENDERO VIVO 3D: ECOTURISMO COMUNITARIO Y NATURALEZA ACCESIBLE\par}
+\vspace{0.12cm}
+{\fontsize{10.5}{14}\selectfont\itshape\color{mutedGray} Desarrollo de un prototipo de aplicación inmersiva inclusiva y definición de necesidades\par}
+
+\vspace{0.45cm}
+{\color{forestSage}\rule{0.72\textwidth}{0.5pt}}\par
+\vspace{0.45cm}
+
+{\fontsize{10.5}{13}\selectfont\bfseries INTEGRANTES\par}
 \vspace{0.1cm}
-{\fontsize{10}{13}\selectfont\color{mutedGray} Selección de grupo vulnerable, definición de necesidades y prototipo web 3D inclusivo\par}
-\end{tcolorbox}
-
-\vspace{0.35cm}
-
-{\fontsize{11}{14}\selectfont\bfseries INTEGRANTES\par}
-\vspace{0.08cm}
-{\fontsize{11.5}{15}\selectfont
+{\fontsize{11}{15}\selectfont
 Jordan Guamán \\
 Mesías Mariscal \\
 Denise Rea\par}
 
-\vspace{0.28cm}
-{\fontsize{11}{14}\selectfont\bfseries DOCENTE\par}
-\vspace{0.06cm}
-{\fontsize{11.5}{14}\selectfont ING. ENRIQUE CALVOPIÑA\par}
+\vspace{0.32cm}
+{\fontsize{10.5}{13}\selectfont\bfseries DOCENTE\par}
+\vspace{0.08cm}
+{\fontsize{11}{14}\selectfont ING. ENRIQUE CALVOPIÑA\par}
 
-\vspace{0.28cm}
-{\fontsize{11}{14}\selectfont\bfseries FECHA\par}
-\vspace{0.06cm}
-{\fontsize{11.5}{14}\selectfont 16 de noviembre de 2026\par}
+\vspace{0.32cm}
+{\fontsize{10.5}{13}\selectfont\bfseries FECHA\par}
+\vspace{0.08cm}
+{\fontsize{11}{14}\selectfont 16 de noviembre de 2026\par}
 
-\vspace{0.35cm}
-
-\begin{tcolorbox}[
-  colback=white!95,
-  colframe=forestDark,
-  arc=2.5mm,
-  boxrule=0.9pt,
-  left=10pt,
-  right=10pt,
-  top=6pt,
-  bottom=6pt,
-  width=0.92\textwidth
-]
-\centering
-{\fontsize{9.8}{13}\selectfont\bfseries\color{forestDark} ENLACES DEL PROYECTO (CÓDIGO FUENTE Y DESPLIEGUE EN VIVO)\par}
-\vspace{0.1cm}
-{\fontsize{9.5}{13}\selectfont
-\textbf{Repositorio GitHub:} \url{https://github.com/AMVMesias/sendero-vivo-3d} \\
-\textbf{Aplicación Web (Vercel):} \url{https://museo-abierto-3d.vercel.app}\par}
-\end{tcolorbox}
+\vspace{0.55cm}
+{\color{forestSage}\rule{0.72\textwidth}{0.5pt}}\par
+\vspace{0.25cm}
+{\fontsize{9.5}{13.5}\selectfont
+\textbf{\color{forestDark}Repositorio GitHub:} \url{https://github.com/AMVMesias/sendero-vivo-3d} \\
+\textbf{\color{forestDark}Aplicación Web (Vercel):} \url{https://museo-abierto-3d.vercel.app}\par}
 
 \vfill
 \end{titlepage}
 
 % ============================================================================
-% PÁGINA 2: FICHA DE ACCESO Y RESUMEN (APA 7)
+% PÁGINA 2: FICHA DE ACCESO MINIMALISTA Y RESUMEN (APA 7)
 % ============================================================================
 \setcounter{page}{2}
 
-\begin{tcolorbox}[
-  colback=forestMist!60,
-  colframe=forestMid,
-  arc=2mm,
-  boxrule=0.8pt,
-  left=10pt,
-  right=10pt,
-  top=8pt,
-  bottom=8pt,
-  title={\bfseries\color{white} Ficha Técnica de Publicación y Acceso del Prototipo},
-  coltitle=white,
-  colbacktitle=forestDark
-]
-\setstretch{1.2}
-\fontsize{10.5}{13.5}\selectfont
-\noindent\textbf{Repositorio GitHub:} \url{https://github.com/AMVMesias/sendero-vivo-3d} \\
-\textbf{Despliegue en vivo (Vercel):} \url{https://museo-abierto-3d.vercel.app} \\
-\textbf{Rama principal / Commit base:} \texttt{main} (\texttt{1dfc7ce}) \\
-\textbf{Tecnologías:} Vite, Three.js, Web Audio API, Web Speech API, HTML5, CSS3 e iconografía SVG propia. \\
-\textbf{Grupo vulnerable atendido:} Personas con movilidad reducida (usuarios de silla de ruedas, bastón o andador) y adultos mayores con limitaciones de desplazamiento.
-\end{tcolorbox}
+\noindent\textbf{Ficha de Acceso y Publicación del Prototipo}
+\vspace{4pt}
 
-\vspace{0.35cm}
+\begingroup
+\setstretch{1.2}
+\fontsize{10}{13}\selectfont
+\noindent\begin{tabularx}{\textwidth}{@{}L{4.2cm} >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Repositorio GitHub} & \url{https://github.com/AMVMesias/sendero-vivo-3d} \\
+\textbf{Despliegue en vivo (Vercel)} & \url{https://museo-abierto-3d.vercel.app} \\
+\textbf{Rama principal} & \texttt{main} \\
+\textbf{Tecnologías} & Vite, Three.js, Web Audio API, Web Speech API, HTML5, CSS3 e iconografía SVG propia \\
+\textbf{Grupo vulnerable} & Personas con movilidad reducida (silla de ruedas, bastón o andador) y adultos mayores \\
+\bottomrule
+\end{tabularx}
+\endgroup
+
+\vspace{0.45cm}
 
 \doublespacing
 
