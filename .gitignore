@@ -1,6 +1,15 @@
 node_modules/
 dist/
 .vite/
+.vercel/
 *.log
 .DS_Store
 Thumbs.db
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.toc
+
+
+.vercel

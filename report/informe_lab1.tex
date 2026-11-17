@@ -1,0 +1,438 @@
+\documentclass[12pt,letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage[margin=2.54cm]{geometry}
+\usepackage{newtxtext,newtxmath}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{tcolorbox}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage[hidelinks]{hyperref}
+
+% Paleta inspirada en el Bosque de Niebla y Sendero Vivo 3D
+\definecolor{forestDark}{HTML}{164A32}
+\definecolor{forestMid}{HTML}{1F6B48}
+\definecolor{forestSage}{HTML}{78A88D}
+\definecolor{forestMist}{HTML}{E6F0EA}
+\definecolor{woodWarm}{HTML}{9E5A22}
+\definecolor{inkDark}{HTML}{18241C}
+\definecolor{mutedGray}{HTML}{4A5950}
+
+% Configuración de enlaces clicables
+\hypersetup{
+  colorlinks=true,
+  linkcolor=forestDark,
+  urlcolor=forestDark,
+  citecolor=inkDark,
+  pdftitle={Informe Laboratorio 1 - Sendero Vivo 3D},
+  pdfauthor={Jordan Guamán, Mesías Mariscal, Denise Rea}
+}
+
+% Formato Normas APA 7.ª edición
+\setlength{\parindent}{1.27cm}
+\setlength{\parskip}{0pt}
+\setcounter{secnumdepth}{0}
+
+\titleformat{\section}
+  {\normalfont\fontsize{12}{14}\bfseries\centering}
+  {}{0pt}{}
+\titlespacing*{\section}{0pt}{14pt}{6pt}
+
+\titleformat{\subsection}
+  {\normalfont\fontsize{12}{14}\bfseries\raggedright}
+  {}{0pt}{}
+\titlespacing*{\subsection}{0pt}{12pt}{4pt}
+
+\titleformat{\subsubsection}
+  {\normalfont\fontsize{12}{14}\bfseries\itshape\raggedright}
+  {}{0pt}{}
+\titlespacing*{\subsubsection}{0pt}{10pt}{2pt}
+
+% Encabezado y numeración APA 7 (titulillo izquierda, página derecha)
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\fontsize{9}{11}\selectfont\color{mutedGray}SENDERO VIVO 3D: ECOTURISMO COMUNITARIO ACCESIBLE}
+\fancyhead[R]{\fontsize{10}{12}\selectfont\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\setlength{\headheight}{15pt}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\captionsetup[table]{
+  labelsep=newline,
+  singlelinecheck=false,
+  justification=raggedright,
+  labelfont=bf,
+  textfont=it,
+  skip=4pt
+}
+
+\begin{document}
+
+% ============================================================================
+% PORTADA TEMÁTICA INSTITUCIONAL ESPE
+% ============================================================================
+\begin{titlepage}
+\thispagestyle{empty}
+
+% Decoración temática ecológica con TikZ (cordillera, niebla y pasarela curva)
+\begin{tikzpicture}[remember picture, overlay]
+  % Franja superior en verde bosque y madera cálida
+  \fill[forestDark] (current page.north west) rectangle ([yshift=-0.55cm]current page.north east);
+  \fill[woodWarm] ([yshift=-0.55cm]current page.north west) rectangle ([yshift=-0.70cm]current page.north east);
+
+  % Marco fino sutil inspirado en sendero y hoja
+  \draw[forestSage, line width=0.9pt]
+    ([xshift=1.15cm, yshift=-1.15cm]current page.north west)
+    rectangle
+    ([xshift=-1.15cm, yshift=1.15cm]current page.south east);
+
+  % Siluetas suaves de montañas de bosque de niebla al pie de página
+  \fill[forestMist]
+    ([yshift=0cm]current page.south west)
+    -- ([yshift=3.4cm]current page.south west)
+    .. controls ([xshift=4.5cm, yshift=4.5cm]current page.south west)
+    and ([xshift=9cm, yshift=2.2cm]current page.south west)
+    .. ([xshift=13.5cm, yshift=3.6cm]current page.south west)
+    .. controls ([xshift=17cm, yshift=4.6cm]current page.south west)
+    and ([xshift=19.5cm, yshift=2.9cm]current page.south west)
+    .. ([yshift=3.2cm]current page.south east)
+    -- (current page.south east) -- cycle;
+
+  \fill[forestSage!35]
+    (current page.south west)
+    -- ([yshift=2.1cm]current page.south west)
+    .. controls ([xshift=5cm, yshift=1.2cm]current page.south west)
+    and ([xshift=10.5cm, yshift=2.9cm]current page.south west)
+    .. ([xshift=15.5cm, yshift=1.7cm]current page.south west)
+    .. controls ([xshift=18.5cm, yshift=1.0cm]current page.south west)
+    and ([xshift=20.2cm, yshift=2.1cm]current page.south west)
+    .. ([yshift=2.2cm]current page.south east)
+    -- (current page.south east) -- cycle;
+
+  % Trazo curvo simbólico de la pasarela accesible
+  \draw[woodWarm!75, line width=2pt]
+    ([yshift=1.2cm]current page.south west)
+    .. controls ([xshift=6cm, yshift=2.3cm]current page.south west)
+    and ([xshift=14cm, yshift=0.5cm]current page.south west)
+    .. ([yshift=1.55cm]current page.south east);
+  \draw[forestDark, line width=1.1pt, dashed]
+    ([yshift=1.05cm]current page.south west)
+    .. controls ([xshift=6cm, yshift=2.15cm]current page.south west)
+    and ([xshift=14cm, yshift=0.35cm]current page.south west)
+    .. ([yshift=1.40cm]current page.south east);
+\end{tikzpicture}
+
+\centering
+\vspace*{0.1cm}
+{\fontsize{14}{17}\selectfont\bfseries\color{forestDark} UNIVERSIDAD DE LAS FUERZAS ARMADAS ESPE\par}
+\vspace{0.35cm}
+
+\includegraphics[width=3.25cm]{assets/espe_logo.jpg}\par
+\vspace{0.35cm}
+
+{\fontsize{12}{15}\selectfont\bfseries\color{inkDark} DEPARTAMENTO DE CIENCIAS DE LA COMUNICACIÓN\par}
+\vspace{0.3cm}
+
+{\fontsize{11}{14}\selectfont\bfseries CARRERA\par}
+{\fontsize{11.5}{14}\selectfont INGENIERÍA EN SOFTWARE\par}
+\vspace{0.25cm}
+
+{\fontsize{11}{14}\selectfont\bfseries ASIGNATURA\par}
+{\fontsize{11.5}{14}\selectfont DESARROLLO DE SOFTWARE APLICADO AL DOMINIO DE INTERCULTURALIDAD\par}
+\vspace{0.35cm}
+
+\begin{tcolorbox}[
+  colback=forestMist!70,
+  colframe=forestMid,
+  arc=3mm,
+  boxrule=1pt,
+  left=10pt,
+  right=10pt,
+  top=8pt,
+  bottom=8pt,
+  width=0.92\textwidth
+]
+\centering
+{\fontsize{10.5}{13}\selectfont\bfseries\color{woodWarm} LABORATORIO 1: PROTOTIPO DE APLICACIÓN INMERSIVA INCLUSIVA\par}
+\vspace{0.15cm}
+{\fontsize{13.5}{17}\selectfont\bfseries\color{forestDark} SENDERO VIVO 3D: ECOTURISMO COMUNITARIO Y NATURALEZA ACCESIBLE\par}
+\vspace{0.1cm}
+{\fontsize{10}{13}\selectfont\color{mutedGray} Selección de grupo vulnerable, definición de necesidades y prototipo web 3D inclusivo\par}
+\end{tcolorbox}
+
+\vspace{0.35cm}
+
+{\fontsize{11}{14}\selectfont\bfseries INTEGRANTES\par}
+\vspace{0.08cm}
+{\fontsize{11.5}{15}\selectfont
+Jordan Guamán \\
+Mesías Mariscal \\
+Denise Rea\par}
+
+\vspace{0.28cm}
+{\fontsize{11}{14}\selectfont\bfseries DOCENTE\par}
+\vspace{0.06cm}
+{\fontsize{11.5}{14}\selectfont ING. ENRIQUE CALVOPIÑA\par}
+
+\vspace{0.28cm}
+{\fontsize{11}{14}\selectfont\bfseries FECHA\par}
+\vspace{0.06cm}
+{\fontsize{11.5}{14}\selectfont 16 de noviembre de 2026\par}
+
+\vspace{0.35cm}
+
+\begin{tcolorbox}[
+  colback=white!95,
+  colframe=forestDark,
+  arc=2.5mm,
+  boxrule=0.9pt,
+  left=10pt,
+  right=10pt,
+  top=6pt,
+  bottom=6pt,
+  width=0.92\textwidth
+]
+\centering
+{\fontsize{9.8}{13}\selectfont\bfseries\color{forestDark} ENLACES DEL PROYECTO (CÓDIGO FUENTE Y DESPLIEGUE EN VIVO)\par}
+\vspace{0.1cm}
+{\fontsize{9.5}{13}\selectfont
+\textbf{Repositorio GitHub:} \url{https://github.com/AMVMesias/sendero-vivo-3d} \\
+\textbf{Aplicación Web (Vercel):} \url{https://museo-abierto-3d.vercel.app}\par}
+\end{tcolorbox}
+
+\vfill
+\end{titlepage}
+
+% ============================================================================
+% PÁGINA 2: FICHA DE ACCESO Y RESUMEN (APA 7)
+% ============================================================================
+\setcounter{page}{2}
+
+\begin{tcolorbox}[
+  colback=forestMist!60,
+  colframe=forestMid,
+  arc=2mm,
+  boxrule=0.8pt,
+  left=10pt,
+  right=10pt,
+  top=8pt,
+  bottom=8pt,
+  title={\bfseries\color{white} Ficha Técnica de Publicación y Acceso del Prototipo},
+  coltitle=white,
+  colbacktitle=forestDark
+]
+\setstretch{1.2}
+\fontsize{10.5}{13.5}\selectfont
+\noindent\textbf{Repositorio GitHub:} \url{https://github.com/AMVMesias/sendero-vivo-3d} \\
+\textbf{Despliegue en vivo (Vercel):} \url{https://museo-abierto-3d.vercel.app} \\
+\textbf{Rama principal / Commit base:} \texttt{main} (\texttt{1dfc7ce}) \\
+\textbf{Tecnologías:} Vite, Three.js, Web Audio API, Web Speech API, HTML5, CSS3 e iconografía SVG propia. \\
+\textbf{Grupo vulnerable atendido:} Personas con movilidad reducida (usuarios de silla de ruedas, bastón o andador) y adultos mayores con limitaciones de desplazamiento.
+\end{tcolorbox}
+
+\vspace{0.35cm}
+
+\doublespacing
+
+\section{Resumen}
+
+\noindent El acceso al ocio, a la naturaleza y al encuentro con las culturas locales suele verse restringido por barreras físicas, geográficas, económicas y sensoriales que afectan de manera desproporcionada a las personas con movilidad reducida y a los adultos mayores. El presente informe documenta los resultados del Laboratorio 1, correspondientes a la selección fundamentada de un grupo vulnerable, la definición de sus necesidades multidimensionales y el desarrollo de \textit{Sendero Vivo 3D}, un prototipo web inmersivo e inclusivo de ecoturismo comunitario accesible. La solución implementa una pasarela virtual continua de 250 metros sin escalones ni pendientes abruptas, distribuida en seis estaciones representativas de un bosque de niebla y guiada por relatos comunitarios. Entre sus mecanismos de accesibilidad destacan la perspectiva ergonómica ajustable entre silla de ruedas (1,15 m) y vista de pie (1,65 m), controles de mirada sin arrastre, avance continuo tramo a tramo, modo de paseo guiado automático, texto escalable, alto contraste, reducción de movimiento, paisaje sonoro procedural y narración en voz alta en español. El prototipo incorpora texturas fotorrealistas e iconografía vectorial propia, y se encuentra publicado en GitHub y desplegado en producción mediante Vercel.
+
+\vspace{0.2cm}
+\noindent\textit{Palabras clave:} accesibilidad universal, ecoturismo comunitario, interculturalidad, realidad virtual web, movilidad reducida, adultos mayores.
+
+\newpage
+
+% ============================================================================
+% CUERPO DEL INFORME (APA 7)
+% ============================================================================
+\section{Introducción}
+
+El derecho a la recreación, al disfrute del patrimonio natural y a la participación cultural en igualdad de condiciones constituye un principio básico de equidad social. Sin embargo, gran parte de los destinos de turismo rural, reservas ecológicas y senderos comunitarios en América Latina carecen de infraestructura universal: presentan terrenos irregulares, escalinatas, barro o largas distancias desde las ciudades que excluyen sistemáticamente a las personas con movilidad reducida y a los adultos mayores (Organización Mundial del Turismo [OMT], 2014). En el contexto ecuatoriano, el artículo 44 de la Ley Orgánica de Discapacidades (Asamblea Nacional del Ecuador, 2012) establece el deber de garantizar ofertas de turismo accesible basadas en el diseño universal; no obstante, su implementación física en territorios rurales enfrenta limitaciones presupuestarias y topográficas.
+
+Desde la perspectiva de la interculturalidad crítica, la exclusión territorial no solo impide el esparcimiento individual, sino que también fractura el diálogo horizontal entre habitantes urbanos en situación de vulnerabilidad y comunidades rurales portadoras de saberes ecológicos, medicinales y artesanales (Walsh, 2009). Asimismo, la Organización Mundial de la Salud (OMS, 2022) advierte que alrededor de 1.300 millones de personas en el mundo viven con algún tipo de discapacidad y enfrentan barreras estructurales persistentes que agravan el aislamiento y la inequidad.
+
+En respuesta a esta problemática, el Laboratorio 1 plantea la definición rigurosa de necesidades de un grupo vulnerable específico y la construcción de un prototipo funcional denominado \textit{Sendero Vivo 3D}. A diferencia de los entornos museográficos tradicionales cerrados, la propuesta recrea un ecosistema vivo de bosque de niebla a través de una aplicación web 3D ejecutable en cualquier navegador estándar, demostrando cómo el diseño inclusivo puede acercar territorios rurales inaccesibles mientras visibiliza la economía solidaria local.
+
+\section{Selección y Caracterización del Grupo Vulnerable}
+
+\subsection{Delimitación del Grupo Seleccionado}
+
+Para evitar planteamientos genéricos, se delimitó como grupo vulnerable principal a las \textbf{personas con movilidad reducida} —particularmente usuarios de silla de ruedas, bastón o andador— y a los \textbf{adultos mayores con limitaciones físicas o de desplazamiento prolongado}. Aunque ambos colectivos presentan particularidades propias, comparten un denominador común crítico frente al entorno natural: la imposibilidad o alta dificultad para transitar rutas montañosas sin pavimento, sortear raíces expuestas, cruzar quebradas o costear traslados especializados hacia zonas rurales alejadas.
+
+\subsection{Barreras Físicas, Sensoriales y Socioculturales}
+
+La revisión de principios internacionales de turismo accesible permite identificar la llamada \textit{cadena de accesibilidad}: si un solo eslabón falla (transporte, sendero, señalética o descanso), la experiencia completa resulta inaccesible (OMT, 2014). En el caso del grupo seleccionado concurren cuatro barreras principales:
+
+\begin{enumerate}[leftmargin=2.2cm, itemsep=2pt]
+  \item \textbf{Barreras arquitectónicas y topográficas:} ausencia de pasarelas niveladas, pendientes superiores al límite ergonómico, escalones naturales y falta de zonas de descanso intermedias.
+  \item \textbf{Barreras sensoriales y de interfaz digital:} muchas aplicaciones 3D exigen visores de realidad virtual costosos o movimientos rápidos de cámara que provocan fatiga motriz y cinetosis (mareo vestibular), además de emplear tipografías diminutas poco legibles para adultos mayores con presbicia.
+  \item \textbf{Barreras económicas y tecnológicas:} requerimiento de equipos de cómputo de gama alta o desplazamiento presencial costoso.
+  \item \textbf{Aislamiento social y distancia intercultural:} confinamiento domiciliario o urbano que limita el vínculo afectivo con la naturaleza y el conocimiento directo de comunidades rurales anfitrionas.
+\end{enumerate}
+
+\section{Definición y Matriz de Necesidades}
+
+A partir de las barreras identificadas y de las pautas internacionales de accesibilidad web WCAG 2.2 (World Wide Web Consortium [W3C], 2023), se estructuraron cinco dimensiones de necesidades que orientaron cada decisión de diseño del prototipo \textit{Sendero Vivo 3D}. La Tabla 1 sintetiza esta matriz de trazabilidad entre las necesidades del usuario y las soluciones implementadas.
+
+\begin{table}[H]
+\centering
+\caption{Matriz de necesidades multidimensionales del grupo vulnerable y respuestas de diseño}
+\label{tab:necesidades}
+\setstretch{1.15}
+\fontsize{9.5}{12}\selectfont
+\begin{tabularx}{\textwidth}{L{2.5cm} L{5.0cm} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Dimensión} & \textbf{Necesidad identificada} & \textbf{Respuesta en \textit{Sendero Vivo 3D}} \\
+\midrule
+Física y motora &
+Recorrer un entorno natural sin depender de destreza motriz fina, arrastre sostenido ni combinaciones complejas de teclado. &
+Pasarela 3D continua sin escalones; botones amplios ($\geq$ 46 px); atajos \texttt{1}--\texttt{6} y \texttt{W}/\texttt{S}; controles de mirada lateral sin arrastre y modo Paseo guiado automático. \\
+\addlinespace[4pt]
+Sensorial y vestibular &
+Evitar mareos por giros bruscos de cámara y facilitar la lectura ante presbicia o fatiga visual. &
+Transiciones suaves o salto directo al activar Reducir movimiento; escalado de texto (Normal, Grande, Muy grande) y modo Alto contraste. \\
+\addlinespace[4pt]
+Auditiva y cognitiva &
+Comprender relatos culturales en lenguaje claro sin sobrecarga técnica y disponer de apoyo sonoro opcional. &
+Redacción bajo criterios de Lectura Fácil, narración en voz alta en español (\textit{Web Speech API}) con pausa y velocidad regulable, y paisaje sonoro natural silenciable. \\
+\addlinespace[4pt]
+Tecnológica y económica &
+Acceder sin adquirir gafas de realidad virtual ni instalar software propietario complejo. &
+Aplicación Web 3D ligera ejecutada en navegador estándar sobre PC, portátil o tableta con despliegue público en Vercel. \\
+\addlinespace[4pt]
+Intercultural y ergonómica &
+Valorar saberes comunitarios con dignidad y experimentar la escala espacial real de un usuario sentado. &
+Relatos centrados en voces locales (medicina tradicional, agua y textiles) y alternancia entre altura de silla de ruedas (1,15 m) y de pie (1,65 m). \\
+\bottomrule
+\end{tabularx}
+\vspace{4pt}
+\par\raggedright\fontsize{9}{11}\selectfont\textit{Nota.} Elaboración propia basada en las pautas WCAG 2.2 (W3C, 2023) y los principios de diseño universal de la OMT (2014).
+\end{table}
+
+\section{Enfoque Intercultural y Diálogo de Saberes}
+
+La propuesta asume la interculturalidad más allá de la representación ornamental o folclórica del entorno rural. Siguiendo los planteamientos de Walsh (2009), el diálogo intercultural exige reconocer a las comunidades rurales y pueblos originarios como productores legítimos de conocimiento científico, ecológico y social. En consecuencia, las estaciones del recorrido evitan presentar el bosque como un escenario vacío para consumo turístico pasivo y articulan tres ejes narrativos:
+
+\begin{itemize}[leftmargin=2.2cm, itemsep=2pt]
+  \item \textbf{Territorio como sujeto vivo:} el relato inicial concibe la montaña y la neblina como un hogar compartido que demanda reciprocidad y respeto antes de recorrerlo.
+  \item \textbf{Diálogo horizontal de saberes:} en la huerta elevada comunitaria, el conocimiento tradicional de plantas como la hierba luisa y el romero dialoga con prácticas agroecológicas actuales y adaptaciones ergonómicas reales (bancales a 80 cm de altura).
+  \item \textbf{Justicia hídrica y economía solidaria:} la estación de la quebrada visibiliza las mingas comunitarias para proteger vertientes, mientras la ramada final expone textiles con tintes naturales y oficios locales como fuentes de sustento directo para 18 familias anfitrionas.
+\end{itemize}
+
+\section{Diseño y Arquitectura del Prototipo Inmersivo}
+
+\subsection{Arquitectura Tecnológica y Modularidad}
+
+El prototipo fue implementado bajo una arquitectura web modular con Vite como empaquetador y Three.js como motor de renderizado WebGL. El código fuente se organizó en capas independientes para facilitar su mantenimiento: \texttt{src/data/stations.js} centraliza el guion intercultural de las seis estaciones; \texttt{src/scene/trailScene.js} construye el terreno, la pasarela, la iluminación atmosférica, las texturas y la cámara ergonómica; \texttt{src/audio/natureAudio.js} sintetiza de forma procedural la brisa, las aves y el murmullo de la cascada mediante \textit{Web Audio API}; \texttt{src/audio/narrator.js} gestiona la lectura en español mediante \textit{Web Speech API}; y \texttt{src/ui/icons.js} provee la iconografía SVG propia de toda la interfaz.
+
+\subsection{Recorrido de 250 Metros y Estaciones Comunitarias}
+
+Para ofrecer una experiencia genuinamente inmersiva y no limitada a una única vista estática, se trazó una curva \textit{Catmull-Rom} de aproximadamente 250 metros conformada por 320 tablones instanciados de madera, pasamanos continuos y pilares cimentados sobre el terreno montañoso. El usuario puede desplazarse estación por estación o avanzar tramo a tramo con los botones de paso continuo y teclas \texttt{W}/\texttt{S}, visualizando un indicador de distancia en tiempo real (\texttt{0 m -- 250 m}). La Tabla 2 detalla las seis estaciones que integran el recorrido.
+
+\begin{table}[H]
+\centering
+\caption{Estaciones del recorrido accesible de 250 metros, voces comunitarias y adaptaciones}
+\label{tab:estaciones}
+\setstretch{1.15}
+\fontsize{9.5}{12}\selectfont
+\begin{tabularx}{\textwidth}{L{0.7cm} L{3.3cm} L{3.0cm} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{N.\textsuperscript{o}} & \textbf{Estación} & \textbf{Guía comunitario} & \textbf{Contenido intercultural y adaptación inclusiva} \\
+\midrule
+1 & Mirador de la Neblina & Doña Rosa Gualinga & Bienvenida territorial, banca con bahía lateral para silla de ruedas y panel físico con mapa botánico ilustrado. \\
+\addlinespace[3pt]
+2 & Paso de los Árboles Abuelos & Taita Mateo Chimbo & Árbol centenario con raíces tablares y bromelias rodeado por pasarela curva sin compactar el suelo musgoso. \\
+\addlinespace[3pt]
+3 & Huerta Elevada de Saberes Medicinales & Don Segundo Morales & Tres bancales elevados a 80 cm libres por debajo para aproximar silla de ruedas; plantas aromáticas y medicina tradicional. \\
+\addlinespace[3pt]
+4 & Quebrada y Cascada del Agua Viva & María Quintero & Puente nivelado sobre el cauce, caída de agua animada entre rocas basálticas y audio adaptativo según cercanía. \\
+\addlinespace[3pt]
+5 & Mirador de Aves y Descanso Accesible & Lucía Andrade & Pérgola sombreada de descanso para adultos mayores frente a un árbol florido con aves animadas en vuelo suave. \\
+\addlinespace[3pt]
+6 & Ramada de Oficios y Economía Solidaria & Taller Textil Sumak & Pabellón iluminado con tapices andinos tejidos, ánforas de cerámica sobre mesa accesible y cierre de comercio justo. \\
+\bottomrule
+\end{tabularx}
+\vspace{4pt}
+\par\raggedright\fontsize{9}{11}\selectfont\textit{Nota.} Datos correspondientes a la configuración implementada en \texttt{src/data/stations.js}.
+\end{table}
+
+\subsection{Texturas Fotorrealistas e Iconografía Personalizada}
+
+Con el propósito de superar la apariencia geométrica plana y ofrecer mayor realismo ambiental, se integraron siete texturas continuas almacenadas en \texttt{public/textures/} acompañadas de mapas de relieve (\textit{bump maps}) para suelo musgoso, tablones de madera envejecida, roca basáltica húmeda, corteza arbórea y follaje tropical. Adicionalmente, la textura de agua del río y de la cascada se animó desplazando sus coordenadas UV en tiempo real para simular el flujo hídrico descendente.
+
+Para reforzar la identidad cultural y visual del entorno, se incorporaron dos recursos gráficos diseñados a medida: un mapa ecológico ilustrado colocado en el atril de madera del Mirador inicial (Figura 1) y un tejido geométrico andino aplicado tanto en el camino de mesa como en los tapices colgantes de la Ramada comunitaria (Figura 2). Asimismo, se prescindió por completo de emojis del sistema en toda la interfaz, creando un conjunto propio de iconos vectoriales SVG (\texttt{src/ui/icons.js}) que heredan automáticamente los colores del modo estándar y del modo Alto contraste.
+
+\begin{figure}[htbp]
+\raggedright
+\textbf{Figura 1}\par
+\textit{Mapa botánico ilustrado incorporado en el atril de bienvenida del Mirador de la Neblina}\par
+\vspace{6pt}
+\centering
+\includegraphics[width=0.65\textwidth]{assets/welcome_map.jpg}\par
+\vspace{4pt}
+\raggedright\fontsize{9}{11}\selectfont\textit{Nota.} Recurso gráfico ubicado en \texttt{public/textures/welcome\_map.jpg}, renderizado dentro de la Estación 1 como señalética panorámica accesible.
+\end{figure}
+
+\begin{figure}[htbp]
+\raggedright
+\textbf{Figura 2}\par
+\textit{Patrón textil artesanal aplicado a los tapices colgantes de la Ramada comunitaria}\par
+\vspace{6pt}
+\centering
+\includegraphics[width=0.40\textwidth]{assets/andean_textile.jpg}\par
+\vspace{4pt}
+\raggedright\fontsize{9}{11}\selectfont\textit{Nota.} Textura continua (\texttt{public/textures/andean\_textile.jpg}) con motivos geométricos de montaña y agua utilizada en la Estación 6.
+\end{figure}
+
+\subsection{Mecanismos de Accesibilidad Universal Implementados}
+
+Siguiendo las recomendaciones de operabilidad y perceptibilidad de las pautas WCAG 2.2 (W3C, 2023), la interfaz superpuesta (\textit{HUD}) evita exigir acciones complejas de ratón. Los usuarios pueden rotar la mirada mediante botones dedicados (\textit{Izquierda}, \textit{Centrar}, \textit{Derecha}), activar un \textit{Paseo guiado} sin manos, ocultar la tarjeta narrativa para disfrutar una vista despejada, conmutar entre perspectiva de silla de ruedas (1,15 m) y vista de pie (1,65 m), ampliar la escala tipográfica hasta un 135\,\%, activar el tema de alto contraste, suprimir animaciones mediante \textit{Reducir movimiento} y regular independientemente el volumen del bosque o la velocidad de la voz narradora.
+
+\section{Despliegue, Control de Versiones y Validación Técnica}
+
+El código completo del prototipo, sus recursos gráficos y la documentación del Laboratorio 1 se gestionaron mediante Git y se publicaron en un repositorio público en GitHub utilizando GitHub CLI (\texttt{AMVMesias/sendero-vivo-3d}, rama \texttt{main}, commit \texttt{1dfc7ce}), excluyendo artefactos generados (\texttt{node\_modules/} y \texttt{dist/}) mediante \texttt{.gitignore}. Posteriormente, el proyecto se enlazó y desplegó en producción mediante Vercel CLI (\texttt{museo-abierto-3d.vercel.app}), generando el paquete optimizado de producción con Vite (\texttt{vite build}) en entorno de compilación remoto.
+
+En cuanto a la verificación técnica realizada, se comprobó localmente la compilación limpia sin errores mediante \texttt{npm run build} tras incorporar las texturas reales, las seis estaciones de 250 metros y la iconografía SVG. Asimismo, se verificó la disponibilidad pública del sitio desplegado en Vercel mediante peticiones HTTP que devolvieron estado \texttt{200 OK} tanto para el documento principal como para las texturas estáticas en \texttt{/textures/}. Cabe precisar con rigor metodológico que la inspección visual automatizada en navegador se completó íntegramente sobre la iteración inicial de cuatro estaciones; tras ampliar el recorrido a seis estaciones con texturas fotorrealistas, la verificación en navegador quedó interrumpida antes de concluir, por lo que la validación experiencial directa con participantes reales del grupo vulnerable se proyecta como fase de pruebas de usabilidad en el Laboratorio 2.
+
+\section{Conclusiones}
+
+La selección delimitada de personas con movilidad reducida y adultos mayores permitió diseñar un prototipo inmersivo donde la accesibilidad no constituye un añadido superficial, sino el eje estructural de la experiencia: desde la pasarela continua de 250 metros sin escalones hasta la cámara ajustable a 1,15 metros de altura y los controles libres de fatiga motriz. La integración del enfoque de interculturalidad crítica garantizó que el territorio y los oficios rurales se presenten a través de voces comunitarias dignas, articulando naturaleza, salud ancestral, gestión del agua y economía solidaria. Finalmente, la incorporación de texturas continuas con relieve, iconografía SVG personalizada, audio ambiental procedural y despliegue público en GitHub y Vercel demuestra la viabilidad técnica de construir soluciones inmersivas inclusivas accesibles desde cualquier navegador web sin barreras de hardware.
+
+\newpage
+
+% ============================================================================
+% REFERENCIAS (NORMAS APA 7.ª EDICIÓN)
+% ============================================================================
+\section{Referencias}
+
+\begingroup
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\everypar{\hangindent=1.27cm \hangafter=1}
+
+Asamblea Nacional del Ecuador. (2012). \textit{Ley Orgánica de Discapacidades} (Suplemento del Registro Oficial N.\textsuperscript{o} 796, 25 de septiembre de 2012).
+
+Organización Mundial de la Salud. (2022). \textit{Informe mundial sobre la equidad en salud para las personas con discapacidad}. Organización Mundial de la Salud.
+
+Organización Mundial del Turismo. (2014). \textit{Manual sobre turismo accesible para todos: Principios, herramientas y buenas prácticas. Módulo I: Turismo accesible -- Definición y contexto}. Organización Mundial del Turismo; Fundación ONCE; Red Europea de Turismo Accesible.
+
+Walsh, C. (2009). \textit{Interculturalidad, Estado, sociedad: Luchas (de)coloniales de nuestra época}. Universidad Andina Simón Bolívar; Ediciones Abya-Yala.
+
+World Wide Web Consortium. (2023). \textit{Web Content Accessibility Guidelines (WCAG) 2.2}. \\ \url{https://www.w3.org/TR/WCAG22/}
+
+\endgroup
+
+\end{document}
