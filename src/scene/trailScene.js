@@ -6,6 +6,7 @@ import {
   createWaterfallShaderMaterial,
   createRiverShaderMaterial,
   enhanceTerrainMaterialWithShader,
+  enhanceBarkWithMossShader,
   enhanceFoliageWithWindShader
 } from './shaders.js';
 
@@ -50,6 +51,7 @@ export class TrailScene {
     this.markers = [];
     this.birds = [];
     this.cloudMeshes = [];
+    this.skyMesh = null;
     this.mistParticles = null;
     this.pollenParticles = null;
     this.grandfatherTreeLookTarget = null;
@@ -87,16 +89,186 @@ export class TrailScene {
 
     this.textures = {
       ground: loadTex('/textures/forest_ground.jpg', 36, 36),
+      meadowGround: loadTex('/textures/ground_meadow_flowers.jpg', 28, 28),
+      pebbleGround: this.createRiverPebblesTexture(),
       wood: loadTex('/textures/wood_planks.jpg', 1, 1),
       woodBeam: loadTex('/textures/wood_planks.jpg', 1, 3),
       rock: loadTex('/textures/cliff_rock.jpg', 3, 3),
       bark: loadTex('/textures/tree_bark.jpg', 2, 4),
+      barkBirch: loadTex('/textures/bark_birch_pale.jpg', 2, 4),
+      barkCedar: loadTex('/textures/bark_red_cedar.jpg', 2, 4),
       foliage: loadTex('/textures/foliage_canopy.jpg', 2, 2),
+      foliageGolden: loadTex('/textures/foliage_golden_olive.jpg', 2, 2),
+      fernFrond: this.createFernFrondTexture(),
       textile: loadTex('/textures/andean_textile.jpg', 1, 1.3),
       welcomeMap: loadTex('/textures/welcome_map.jpg', 1, 1),
       waterFoam: this.createWaterStreamTexture(),
       softParticle: this.createSoftParticleTexture()
     };
+  }
+
+  /** Textura procedural continua de cantos rodados, grava y arena de río para las orillas. */
+  createRiverPebblesTexture() {
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#5c5549';
+    ctx.fillRect(0, 0, size, size);
+
+    let s = 421;
+    const rand = () => {
+      s = (s * 1664525 + 1013904223) % 4294967296;
+      return s / 4294967296;
+    };
+
+    const pebbleColors = ['#7c7870', '#968f82', '#646a64', '#504b44', '#857766', '#a89f8d', '#4f5d52'];
+    // Arena y grava fina de base
+    for (let i = 0; i < 1600; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const r = 1.5 + rand() * 4.5;
+      ctx.fillStyle = rand() > 0.5 ? 'rgba(130, 122, 106, 0.45)' : 'rgba(65, 62, 54, 0.45)';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Cantos rodados suaves con reflejo húmedo y repetición en bordes
+    for (let i = 0; i < 420; i++) {
+      const cx = rand() * size;
+      const cy = rand() * size;
+      const rx = 7 + rand() * 17;
+      const ry = 5 + rand() * 13;
+      const rot = rand() * Math.PI;
+      const col = pebbleColors[Math.floor(rand() * pebbleColors.length)];
+
+      for (const ox of [-size, 0, size]) {
+        for (const oy of [-size, 0, size]) {
+          const px = cx + ox;
+          const py = cy + oy;
+          if (px < -30 || px > size + 30 || py < -30 || py > size + 30) continue;
+
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(rot);
+
+          ctx.fillStyle = 'rgba(22, 24, 20, 0.42)';
+          ctx.beginPath();
+          ctx.ellipse(2, 3, rx, ry, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = 'rgba(232, 238, 230, 0.22)';
+          ctx.beginPath();
+          ctx.ellipse(-rx * 0.25, -ry * 0.28, rx * 0.48, ry * 0.32, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  /** Fronda botánica plumosa recortada (alpha) para helechos arborescentes y del sotobosque. */
+  createFernFrondTexture() {
+    const w = 512;
+    const h = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+
+    // Raquis central (tallo desde y=506 en base hasta y=18 en punta)
+    const stemGrad = ctx.createLinearGradient(w / 2, h, w / 2, 16);
+    stemGrad.addColorStop(0, '#4f5e24');
+    stemGrad.addColorStop(0.5, '#4b7a2c');
+    stemGrad.addColorStop(1, '#78a83b');
+    ctx.strokeStyle = stemGrad;
+    ctx.lineCap = 'round';
+    for (let y = h - 6; y >= 18; y -= 12) {
+      const t = 1 - y / h;
+      ctx.lineWidth = Math.max(2, 9 * (1 - t * 0.8));
+      ctx.beginPath();
+      ctx.moveTo(w / 2, y);
+      ctx.lineTo(w / 2, y - 13);
+      ctx.stroke();
+    }
+
+    // 22 pares de folíolos (pinnas) ligeramente arqueados hacia la punta
+    const pairs = 22;
+    for (let i = 0; i < pairs; i++) {
+      const t = i / (pairs - 1); // 0 base -> 1 punta
+      const y = h - 32 - t * (h - 62);
+      const envelope = Math.sin(Math.pow(t, 0.72) * Math.PI * 0.94 + 0.14);
+      const leafletLen = Math.max(16, envelope * 212 * (1 - t * 0.15));
+      const leafletWidth = Math.max(7, 23 * (1 - t * 0.45));
+
+      for (const dir of [-1, 1]) {
+        ctx.save();
+        ctx.translate(w / 2, y);
+        ctx.rotate(dir * (0.28 + t * 0.24));
+
+        const lGrad = ctx.createLinearGradient(0, 0, dir * leafletLen, -leafletWidth);
+        if (i % 3 === 0) {
+          lGrad.addColorStop(0, '#2e5d24');
+          lGrad.addColorStop(0.55, '#4b8631');
+          lGrad.addColorStop(1, '#79b343');
+        } else {
+          lGrad.addColorStop(0, '#265321');
+          lGrad.addColorStop(0.6, '#3f762b');
+          lGrad.addColorStop(1, '#689e39');
+        }
+
+        ctx.fillStyle = lGrad;
+        ctx.beginPath();
+        ctx.moveTo(0, leafletWidth * 0.32);
+        // Contorno dentado/ondulado orgánico del folíolo
+        const lobes = 5;
+        for (let l = 1; l <= lobes; l++) {
+          const u = l / lobes;
+          const lx = dir * leafletLen * u;
+          const taper = (1 - u * 0.85) * leafletWidth;
+          ctx.quadraticCurveTo(
+            dir * leafletLen * (u - 0.1),
+            -taper * 0.95 - (u * 14),
+            lx,
+            -taper * 0.25 - u * 16
+          );
+        }
+        ctx.quadraticCurveTo(dir * leafletLen * 0.52, leafletWidth * 0.42 - 8, 0, -leafletWidth * 0.3);
+        ctx.closePath();
+        ctx.fill();
+
+        // Nervadura sutil clara
+        ctx.strokeStyle = 'rgba(176, 218, 102, 0.42)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(dir * leafletLen * 0.86, -13);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
   }
 
   /** Textura vertical espumosa para muestreo dual en los shaders de agua. */
@@ -174,7 +346,7 @@ export class TrailScene {
     this.scene.fog = new THREE.FogExp2(this.fogColor.getHex(), this.fogDensity);
 
     const aspect = this.container.clientWidth / Math.max(1, this.container.clientHeight);
-    this.camera = new THREE.PerspectiveCamera(56, aspect, 0.1, 280);
+    this.camera = new THREE.PerspectiveCamera(56, aspect, 0.1, 750);
 
     const hemiLight = new THREE.HemisphereLight(0xf1f8f5, 0x384b34, 1.02);
     this.scene.add(hemiLight);
@@ -202,18 +374,19 @@ export class TrailScene {
   }
 
   buildSkyAndClouds() {
-    // Domo celeste con nubes FBM procedurales
-    const skyGeo = new THREE.SphereGeometry(220, 32, 20);
+    // Domo celeste amplio centrado siempre en la cámara (elimina cualquier recorte de plano lejano)
+    const skyGeo = new THREE.SphereGeometry(420, 48, 32);
     const skyMat = createSkyWithCloudsMaterial(this.uTime);
-    this.scene.add(new THREE.Mesh(skyGeo, skyMat));
+    this.skyMesh = new THREE.Mesh(skyGeo, skyMat);
+    this.scene.add(this.skyMesh);
 
     // Bancos de nubes altas flotando sobre las cumbres
     const cloudMat = createCloudLayerMaterial(this.uTime);
     for (let i = 0; i < 10; i++) {
       const ang = (i / 10) * Math.PI * 2;
-      const dist = 62 + (i % 3) * 24;
-      const cloud = new THREE.Mesh(new THREE.PlaneGeometry(42 + (i % 3) * 14, 24), cloudMat);
-      cloud.position.set(Math.cos(ang) * dist, 29 + (i % 3) * 5, Math.sin(ang) * dist);
+      const dist = 76 + (i % 3) * 26;
+      const cloud = new THREE.Mesh(new THREE.PlaneGeometry(46 + (i % 3) * 14, 26), cloudMat);
+      cloud.position.set(Math.cos(ang) * dist, 40 + (i % 3) * 7, Math.sin(ang) * dist);
       cloud.rotation.x = Math.PI / 2;
       cloud.rotation.z = ang * 0.5;
       cloud.userData = { baseAngle: ang, dist, speed: 0.008 + (i % 3) * 0.004 };
@@ -329,9 +502,10 @@ export class TrailScene {
 
     const pos = geo.attributes.position;
     const colors = [];
-    const cMeadow = new THREE.Color(0xdbe6d2);
-    const cRockTint = new THREE.Color(0xafb5af);
-    const cBankTint = new THREE.Color(0xbca88d);
+    const zoneWeights = [];
+    const cMeadow = new THREE.Color(0xf4f8ef);
+    const cRockTint = new THREE.Color(0xe6ece7);
+    const cBankTint = new THREE.Color(0xf0eadf);
     const tmp = new THREE.Color();
 
     for (let i = 0; i < pos.count; i++) {
@@ -341,13 +515,29 @@ export class TrailScene {
       pos.setY(i, y);
 
       const streamDist = this.distanceToStream(x, z);
+      const slope =
+        Math.abs(this.getTerrainHeight(x + 1.4, z) - y) +
+        Math.abs(this.getTerrainHeight(x, z + 1.4) - y);
+
       if (y > 6.5) tmp.copy(cRockTint);
-      else if (streamDist < 4.4) tmp.copy(cBankTint);
+      else if (streamDist < 4.8) tmp.copy(cBankTint);
       else tmp.copy(cMeadow);
       colors.push(tmp.r, tmp.g, tmp.b);
+
+      // Pesos multizona para shader GLSL: [bosque, pradera con flores, cantos de río, roca]
+      const rockW = THREE.MathUtils.clamp((y - 5.2) / 3.2 + Math.max(0, slope - 0.85) * 0.7, 0, 1);
+      const pebbleW = THREE.MathUtils.clamp(1 - (streamDist - 1.2) / 4.2, 0, 1) * (1 - rockW * 0.5);
+      const meadowPatch = 0.5 + 0.5 * Math.sin(x * 0.065 + Math.cos(z * 0.055) * 1.4);
+      const rawMeadow =
+        y < 4.6 && streamDist > 3.6 ? THREE.MathUtils.clamp((meadowPatch - 0.35) * 1.45, 0, 1) : 0;
+      const meadowW = rawMeadow * (1 - rockW) * (1 - pebbleW);
+      const forestW = Math.max(0.05, 1 - Math.min(0.95, rockW + pebbleW + meadowW));
+
+      zoneWeights.push(forestW, meadowW, pebbleW, rockW);
     }
 
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setAttribute('aTerrainZones', new THREE.Float32BufferAttribute(zoneWeights, 4));
     geo.computeVertexNormals();
 
     const mat = new THREE.MeshStandardMaterial({
@@ -358,7 +548,11 @@ export class TrailScene {
       roughness: 0.92,
       metalness: 0.02
     });
-    enhanceTerrainMaterialWithShader(mat);
+    enhanceTerrainMaterialWithShader(mat, {
+      meadowTex: this.textures.meadowGround,
+      pebblesTex: this.textures.pebbleGround,
+      rockTex: this.textures.rock
+    });
 
     const terrain = new THREE.Mesh(geo, mat);
     terrain.receiveShadow = true;
@@ -1074,32 +1268,91 @@ export class TrailScene {
   }
 
   /**
-   * Construye el bosque con 4 arquetipos distintos de árboles y troncos variados
-   * (curvos, bifurcados, helechos arbóreos de montaña y troncos caídos musgosos).
+   * Construye geometría curva de fronda botánica para helechos arborescentes y sotobosque.
+   */
+  createCurvedFrondGeometry(length = 1.85, width = 0.72, archRise = 0.34, droop = 0.56) {
+    const geo = new THREE.PlaneGeometry(width, length, 4, 9);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const yOrig = pos.getY(i);
+      const t = (yOrig + length * 0.5) / length; // 0 en tallo -> 1 en punta
+      const forwardZ = t * length;
+      const curveY =
+        (Math.sin(t * Math.PI * 0.74) * archRise - Math.pow(t, 1.85) * droop) * length;
+      const vFold = -Math.abs(x) * 0.16;
+      pos.setXYZ(i, x, curveY + vFold, forwardZ);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  /** Verifica que arbustos/helechos no invadan la pasarela ni el cauce profundo ni cabañas. */
+  isBlockedForUnderstory(x, z) {
+    if (this.distanceToStream(x, z) < 2.55) return true;
+    if (Math.hypot(x - 23.6, z + 15.6) < 6.4) return true;
+    if (this.grandfatherTreePos && Math.hypot(x - this.grandfatherTreePos.x, z - this.grandfatherTreePos.z) < 2.9) {
+      return true;
+    }
+    if (Math.hypot(x - 47.5, z - 5.5) < 4.5) return true;
+    for (const pt of this.boardwalkSamples) {
+      if (Math.hypot(x - pt.x, z - pt.z) < 2.28) return true;
+    }
+    for (let i = 0; i < this.stationTs.length; i++) {
+      const sPt = this.boardwalkCurve.getPointAt(this.stationTs[i]);
+      if (Math.hypot(x - sPt.x, z - sPt.z) < 3.6) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Construye el bosque nublado con 5 especies de árboles, múltiples texturas de corteza
+   * (con musgo GLSL), copas orgánicas, helechos arborescentes curvados y abundante sotobosque.
    */
   buildForestAndFlora() {
-    const barkTints = [0xffffff, 0xcbb7a4, 0x9aa38e, 0xd8c3b0];
-    const barkMats = barkTints.map(
-      (hex) =>
-        new THREE.MeshStandardMaterial({
-          map: this.textures.bark,
-          bumpMap: this.textures.bark,
-          bumpScale: 0.08,
-          color: hex,
-          roughness: 0.92
-        })
-    );
-
-    const foliageTints = [0xdcf0d3, 0xb7deb0, 0xcbe6bd, 0x9ecc99];
-    const foliageMats = foliageTints.map((hex) => {
+    const barkSpecs = [
+      { tex: this.textures.bark, color: 0xffffff, bump: 0.09 },
+      { tex: this.textures.bark, color: 0xc2b29d, bump: 0.08 },
+      { tex: this.textures.barkBirch, color: 0xf4f2ea, bump: 0.06 },
+      { tex: this.textures.barkCedar, color: 0xf0dcd0, bump: 0.085 }
+    ];
+    const barkMats = barkSpecs.map((spec) => {
       const m = new THREE.MeshStandardMaterial({
-        map: this.textures.foliage,
-        color: hex,
-        roughness: 0.84
+        map: spec.tex,
+        bumpMap: spec.tex,
+        bumpScale: spec.bump,
+        color: spec.color,
+        roughness: 0.91
+      });
+      enhanceBarkWithMossShader(m);
+      return m;
+    });
+
+    const foliageSpecs = [
+      { tex: this.textures.foliage, color: 0xddf2d4 },
+      { tex: this.textures.foliage, color: 0xb7deb0 },
+      { tex: this.textures.foliageGolden, color: 0xe6efc4 },
+      { tex: this.textures.foliageGolden, color: 0xcde3a8 },
+      { tex: this.textures.foliage, color: 0x98c994 }
+    ];
+    const foliageMats = foliageSpecs.map((spec) => {
+      const m = new THREE.MeshStandardMaterial({
+        map: spec.tex,
+        color: spec.color,
+        roughness: 0.85
       });
       enhanceFoliageWithWindShader(m, this.uTime);
       return m;
     });
+
+    const fernMat = new THREE.MeshStandardMaterial({
+      map: this.textures.fernFrond,
+      alphaTest: 0.34,
+      side: THREE.DoubleSide,
+      roughness: 0.78,
+      color: 0xe8f5dc
+    });
+    enhanceFoliageWithWindShader(fernMat, this.uTime);
 
     const rockMat = new THREE.MeshStandardMaterial({
       map: this.textures.rock,
@@ -1108,46 +1361,128 @@ export class TrailScene {
       roughness: 0.9
     });
 
+    const blossomColors = [0xe46b8f, 0xf3bf42, 0xf7f5e8, 0xe88b58];
+    const blossomMats = blossomColors.map(
+      (hex) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.65 })
+    );
+
+    // Geometrías compartidas suavemente perturbadas para evitar poliedros bruscos
+    const crownGeos = [
+      this.perturbGeometry(new THREE.IcosahedronGeometry(1, 2), 0.1, 31),
+      this.perturbGeometry(new THREE.IcosahedronGeometry(1, 2), 0.12, 67)
+    ];
+    const shrubGeo = this.perturbGeometry(new THREE.IcosahedronGeometry(0.55, 2), 0.11, 19);
+    const frondGeoTree = this.createCurvedFrondGeometry(1.9, 0.76, 0.34, 0.56);
+    const frondGeoGround = this.createCurvedFrondGeometry(1.05, 0.44, 0.44, 0.52);
+
     let seed = 91;
     const rand = () => {
       seed = (seed * 1664525 + 1013904223) % 4294967296;
       return seed / 4294967296;
     };
 
-    for (let i = 0; i < 230; i++) {
+    // 1) 255 árboles variados de 5 especies nubladas
+    for (let i = 0; i < 255; i++) {
       const x = (rand() - 0.5) * 195;
       const z = (rand() - 0.5) * 195;
       if (this.isNearTrailOrWater(x, z)) continue;
 
       const y = this.getTerrainHeight(x, z);
       const scale = 0.8 + rand() * 1.15;
-      const barkMat = barkMats[i % barkMats.length];
-      const leafMat = foliageMats[i % foliageMats.length];
+      const crownGeo = crownGeos[i % crownGeos.length];
       const rotY = rand() * Math.PI * 2;
+      const species = i % 10;
 
-      const archetype = i % 10;
       let tree;
-      if (archetype < 4) {
-        tree = this.createForkedTree(scale, barkMat, leafMat, rand);
-      } else if (archetype < 8) {
-        tree = this.createCurvedCanopyTree(scale, barkMat, leafMat, rand);
+      if (species < 2) {
+        // Aliso plateado de corteza clara y copa verde oliva dorada
+        tree = this.createSlenderBirchTree(
+          scale,
+          barkMats[2],
+          foliageMats[2 + (i % 2)],
+          rand,
+          crownGeo
+        );
+      } else if (species < 4) {
+        // Yagual / Polylepis andino multicaule de corteza rojiza
+        tree = this.createGnarledRedBarkTree(
+          scale,
+          barkMats[3],
+          foliageMats[i % 2 === 0 ? 0 : 4],
+          rand,
+          crownGeo
+        );
+      } else if (species < 7) {
+        // Cedro o roble bifurcado en Y
+        tree = this.createForkedTree(
+          scale,
+          barkMats[i % 2],
+          foliageMats[i % foliageMats.length],
+          rand,
+          crownGeo
+        );
+      } else if (species < 9) {
+        // Árbol curvo de dosel denso
+        tree = this.createCurvedCanopyTree(
+          scale,
+          barkMats[i % 3 === 0 ? 3 : i % 2],
+          foliageMats[(i + 1) % foliageMats.length],
+          rand,
+          crownGeo
+        );
       } else {
-        tree = this.createMountainTreeFern(scale, barkMat, leafMat);
+        // Helecho arborescente Cyathea con frondas plumosas arqueadas
+        tree = this.createMountainTreeFern(scale, barkMats[1], fernMat, frondGeoTree, rand);
       }
 
-      tree.position.set(x, y - 0.15, z);
+      tree.position.set(x, y - 0.16, z);
       tree.rotation.y = rotY;
       this.scene.add(tree);
     }
 
-    // Troncos caídos musgosos, rocas angulosas y helechos cerca del borde
-    for (let i = 0; i < 105; i++) {
-      const x = (rand() - 0.5) * 155;
-      const z = (rand() - 0.5) * 155;
+    // 2) Bordes verdes vivos a lo largo de ambos lados de toda la pasarela
+    for (let i = 2; i < this.boardwalkSamples.length - 1; i++) {
+      if (i % 2 !== 0 && rand() > 0.45) continue;
+      const pt = this.boardwalkSamples[i];
+      const nextPt = this.boardwalkSamples[Math.min(this.boardwalkSamples.length - 1, i + 1)];
+      const tx = nextPt.x - pt.x;
+      const tz = nextPt.z - pt.z;
+      const len = Math.max(0.01, Math.hypot(tx, tz));
+      const nx = -tz / len;
+      const nz = tx / len;
+
+      for (const side of [-1, 1]) {
+        if (rand() < 0.22) continue;
+        const offset = 2.6 + rand() * 3.8;
+        const sx = pt.x + nx * side * offset + (rand() - 0.5) * 1.4;
+        const sz = pt.z + nz * side * offset + (rand() - 0.5) * 1.4;
+        if (this.isBlockedForUnderstory(sx, sz)) continue;
+
+        const sy = this.getTerrainHeight(sx, sz);
+        if (rand() < 0.42) {
+          const fernClump = this.createGroundFernClump(0.78 + rand() * 0.55, fernMat, frondGeoGround, rand);
+          fernClump.position.set(sx, sy - 0.04, sz);
+          fernClump.rotation.y = rand() * Math.PI * 2;
+          this.scene.add(fernClump);
+        } else {
+          const leafMat = foliageMats[Math.floor(rand() * foliageMats.length)];
+          const fMat = rand() > 0.48 ? blossomMats[Math.floor(rand() * blossomMats.length)] : null;
+          const shrub = this.createUnderstoryShrub(0.82 + rand() * 0.65, leafMat, rand, shrubGeo, fMat);
+          shrub.position.set(sx, sy - 0.08, sz);
+          shrub.rotation.y = rand() * Math.PI * 2;
+          this.scene.add(shrub);
+        }
+      }
+    }
+
+    // 3) Sotobosque amplio del valle: arbustos frondosos, flores, helechos rastreros, troncos y rocas
+    for (let i = 0; i < 240; i++) {
+      const x = (rand() - 0.5) * 165;
+      const z = (rand() - 0.5) * 165;
       if (this.isOnBoardwalkCore(x, z)) continue;
       const y = this.getTerrainHeight(x, z);
 
-      if (i % 5 === 0 && !this.isNearTrailOrWater(x, z)) {
+      if (i % 14 === 0 && !this.isNearTrailOrWater(x, z)) {
         const logCurve = new THREE.CatmullRomCurve3([
           new THREE.Vector3(-1.4, 0.18, 0),
           new THREE.Vector3(0, 0.28, 0.15),
@@ -1155,13 +1490,13 @@ export class TrailScene {
         ]);
         const log = new THREE.Mesh(
           new THREE.TubeGeometry(logCurve, 8, 0.24 + rand() * 0.12, 7, false),
-          barkMats[2]
+          barkMats[1]
         );
         log.position.set(x, y, z);
         log.rotation.y = rand() * Math.PI;
         log.castShadow = true;
         this.scene.add(log);
-      } else if (i % 3 === 0) {
+      } else if (i % 9 === 0 && !this.isBlockedForUnderstory(x, z)) {
         const geo = this.perturbGeometry(
           new THREE.DodecahedronGeometry(0.55 + rand() * 0.55, 1),
           0.25,
@@ -1173,22 +1508,84 @@ export class TrailScene {
         boulder.castShadow = true;
         boulder.receiveShadow = true;
         this.scene.add(boulder);
-      } else {
-        const fern = new THREE.Mesh(
-          new THREE.IcosahedronGeometry(0.45 + rand() * 0.35, 0),
-          foliageMats[1]
-        );
-        fern.scale.set(1.3, 0.5, 1.3);
-        fern.position.set(x, y + 0.14, z);
-        this.scene.add(fern);
+      } else if (!this.isBlockedForUnderstory(x, z)) {
+        if (i % 3 === 0) {
+          const fernClump = this.createGroundFernClump(0.8 + rand() * 0.65, fernMat, frondGeoGround, rand);
+          fernClump.position.set(x, y - 0.04, z);
+          fernClump.rotation.y = rand() * Math.PI * 2;
+          this.scene.add(fernClump);
+        } else {
+          const leafMat = foliageMats[i % foliageMats.length];
+          const fMat = rand() > 0.55 ? blossomMats[i % blossomMats.length] : null;
+          const shrub = this.createUnderstoryShrub(0.9 + rand() * 0.85, leafMat, rand, shrubGeo, fMat);
+          shrub.position.set(x, y - 0.08, z);
+          shrub.rotation.y = rand() * Math.PI * 2;
+          this.scene.add(shrub);
+        }
       }
     }
   }
 
-  createCurvedCanopyTree(scale, barkMat, leafMat, rand) {
+  /** Arbusto multicapa del sotobosque con racimos foliares y flores andinas opcionales. */
+  createUnderstoryShrub(scale, leafMat, rand, shrubGeo, flowerMat) {
     const group = new THREE.Group();
-    const leanX = (rand() - 0.5) * 0.8 * scale;
-    const leanZ = (rand() - 0.5) * 0.8 * scale;
+    const lobes = 3 + Math.floor(rand() * 3);
+    for (let j = 0; j < lobes; j++) {
+      const ang = (j / lobes) * Math.PI * 2 + rand() * 0.5;
+      const dist = j === 0 ? 0 : (0.28 + rand() * 0.25) * scale;
+      const lobe = new THREE.Mesh(shrubGeo, leafMat);
+      const rScale = (j === 0 ? 1.05 : 0.72 + rand() * 0.25) * scale;
+      lobe.scale.set(rScale * 1.15, rScale * (j === 0 ? 0.92 : 0.76), rScale * 1.15);
+      lobe.position.set(
+        Math.cos(ang) * dist,
+        (j === 0 ? 0.42 : 0.3) * scale,
+        Math.sin(ang) * dist
+      );
+      lobe.castShadow = true;
+      lobe.receiveShadow = true;
+      group.add(lobe);
+    }
+
+    if (flowerMat) {
+      const blooms = 4 + Math.floor(rand() * 4);
+      const bloomGeo = new THREE.SphereGeometry(0.068 * scale, 6, 5);
+      for (let f = 0; f < blooms; f++) {
+        const ang = (f / blooms) * Math.PI * 2 + rand() * 0.4;
+        const rad = (0.18 + rand() * 0.38) * scale;
+        const bloom = new THREE.Mesh(bloomGeo, flowerMat);
+        bloom.position.set(
+          Math.cos(ang) * rad,
+          (0.58 + rand() * 0.26) * scale,
+          Math.sin(ang) * rad
+        );
+        group.add(bloom);
+      }
+    }
+    return group;
+  }
+
+  /** Roseta de helecho rastrero natural con frondas arqueadas hacia afuera. */
+  createGroundFernClump(scale, fernMat, frondGeo, rand) {
+    const group = new THREE.Group();
+    const count = 6 + Math.floor(rand() * 3);
+    for (let f = 0; f < count; f++) {
+      const ang = (f / count) * Math.PI * 2 + (rand() - 0.5) * 0.28;
+      const frond = new THREE.Mesh(frondGeo, fernMat);
+      const s = scale * (0.85 + rand() * 0.3);
+      frond.scale.set(s, s, s);
+      frond.position.set(0, 0.08 * scale, 0);
+      frond.rotation.y = ang;
+      frond.rotation.x = -0.25 - rand() * 0.2;
+      frond.castShadow = true;
+      group.add(frond);
+    }
+    return group;
+  }
+
+  createCurvedCanopyTree(scale, barkMat, leafMat, rand, crownGeo) {
+    const group = new THREE.Group();
+    const leanX = (rand() - 0.5) * 0.85 * scale;
+    const leanZ = (rand() - 0.5) * 0.85 * scale;
     const h = (4.6 + rand() * 1.4) * scale;
 
     const curve = new THREE.CatmullRomCurve3([
@@ -1196,26 +1593,103 @@ export class TrailScene {
       new THREE.Vector3(leanX * 0.5, h * 0.5, leanZ * 0.5),
       new THREE.Vector3(leanX, h, leanZ)
     ]);
-    const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 10, 0.25 * scale, 7, false), barkMat);
+    const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 10, 0.25 * scale, 8, false), barkMat);
     trunk.castShadow = true;
     group.add(trunk);
 
     const clusters = [
-      [leanX, h + 0.5 * scale, leanZ, 1.7],
-      [leanX - 0.9 * scale, h - 0.3 * scale, leanZ + 0.7 * scale, 1.3],
+      [leanX, h + 0.5 * scale, leanZ, 1.72],
+      [leanX - 0.9 * scale, h - 0.3 * scale, leanZ + 0.7 * scale, 1.32],
       [leanX + 0.9 * scale, h - 0.1 * scale, leanZ - 0.6 * scale, 1.35]
     ];
     clusters.forEach(([cx, cy, cz, r]) => {
-      const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(r * scale, 1), leafMat);
-      crown.scale.set(1.2, 0.8, 1.2);
+      const crown = new THREE.Mesh(crownGeo, leafMat);
+      const rs = r * scale;
+      crown.scale.set(rs * 1.2, rs * 0.82, rs * 1.2);
       crown.position.set(cx, cy, cz);
       crown.castShadow = true;
+      crown.receiveShadow = true;
       group.add(crown);
     });
     return group;
   }
 
-  createForkedTree(scale, barkMat, leafMat, rand) {
+  /** Aliso plateado andino de tronco esbelto claro y copa ligera en niveles. */
+  createSlenderBirchTree(scale, barkMat, leafMat, rand, crownGeo) {
+    const group = new THREE.Group();
+    const h = (5.6 + rand() * 1.6) * scale;
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3((rand() - 0.5) * 0.45 * scale, h * 0.45, (rand() - 0.5) * 0.45 * scale),
+      new THREE.Vector3((rand() - 0.5) * 0.5 * scale, h, (rand() - 0.5) * 0.5 * scale)
+    ]);
+    const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 11, 0.17 * scale, 8, false), barkMat);
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    for (let b = 0; b < 3; b++) {
+      const origin = curve.getPointAt(0.58 + b * 0.14);
+      const ang = (b / 3) * Math.PI * 2 + rand() * 0.6;
+      const reach = (1.15 + rand() * 0.45) * scale;
+      const bCurve = new THREE.CatmullRomCurve3([
+        origin.clone(),
+        origin.clone().add(new THREE.Vector3(Math.cos(ang) * reach * 0.55, 0.75 * scale, Math.sin(ang) * reach * 0.55)),
+        origin.clone().add(new THREE.Vector3(Math.cos(ang) * reach, 1.45 * scale, Math.sin(ang) * reach))
+      ]);
+      const branch = new THREE.Mesh(new THREE.TubeGeometry(bCurve, 6, 0.08 * scale, 6, false), barkMat);
+      branch.castShadow = true;
+      group.add(branch);
+
+      const tip = bCurve.getPointAt(1);
+      const crown = new THREE.Mesh(crownGeo, leafMat);
+      const rs = (1.18 + rand() * 0.25) * scale;
+      crown.scale.set(rs * 1.18, rs * 0.76, rs * 1.18);
+      crown.position.copy(tip).add(new THREE.Vector3(0, 0.25 * scale, 0));
+      crown.castShadow = true;
+      group.add(crown);
+    }
+
+    const topCrown = new THREE.Mesh(crownGeo, leafMat);
+    const topPos = curve.getPointAt(1);
+    const rs = 1.42 * scale;
+    topCrown.scale.set(rs * 1.15, rs * 0.85, rs * 1.15);
+    topCrown.position.copy(topPos).add(new THREE.Vector3(0, 0.45 * scale, 0));
+    topCrown.castShadow = true;
+    group.add(topCrown);
+    return group;
+  }
+
+  /** Árbol andino Polylepis multicaule de troncos retorcidos rojizos. */
+  createGnarledRedBarkTree(scale, barkMat, leafMat, rand, crownGeo) {
+    const group = new THREE.Group();
+    const stems = 2 + Math.floor(rand() * 2);
+    for (let s = 0; s < stems; s++) {
+      const ang = (s / stems) * Math.PI * 2 + rand() * 0.5;
+      const spread = (1.35 + rand() * 0.7) * scale;
+      const h = (3.8 + rand() * 1.3) * scale;
+      const stemCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(Math.cos(ang) * 0.18 * scale, 0, Math.sin(ang) * 0.18 * scale),
+        new THREE.Vector3(Math.cos(ang + 0.35) * spread * 0.65, h * 0.48, Math.sin(ang + 0.35) * spread * 0.65),
+        new THREE.Vector3(Math.cos(ang) * spread, h, Math.sin(ang) * spread)
+      ]);
+      const stem = new THREE.Mesh(
+        new THREE.TubeGeometry(stemCurve, 9, 0.18 * scale, 7, false),
+        barkMat
+      );
+      stem.castShadow = true;
+      group.add(stem);
+
+      const canopy = new THREE.Mesh(crownGeo, leafMat);
+      const rs = (1.42 + rand() * 0.3) * scale;
+      canopy.scale.set(rs * 1.3, rs * 0.72, rs * 1.3);
+      canopy.position.set(Math.cos(ang) * spread, h + 0.25 * scale, Math.sin(ang) * spread);
+      canopy.castShadow = true;
+      group.add(canopy);
+    }
+    return group;
+  }
+
+  createForkedTree(scale, barkMat, leafMat, rand, crownGeo) {
     const group = new THREE.Group();
     const forkH = 2.6 * scale;
     const baseCurve = new THREE.CatmullRomCurve3([
@@ -1224,7 +1698,7 @@ export class TrailScene {
       new THREE.Vector3(0, forkH, 0)
     ]);
     const baseTrunk = new THREE.Mesh(
-      new THREE.TubeGeometry(baseCurve, 7, 0.28 * scale, 7, false),
+      new THREE.TubeGeometry(baseCurve, 7, 0.28 * scale, 8, false),
       barkMat
     );
     baseTrunk.castShadow = true;
@@ -1243,44 +1717,67 @@ export class TrailScene {
         new THREE.Vector3(dx * 0.55, forkH + 1.1 * scale, dz * 0.55),
         new THREE.Vector3(dx, topH, dz)
       ]);
-      const bough = new THREE.Mesh(new THREE.TubeGeometry(bCurve, 7, 0.15 * scale, 6, false), barkMat);
+      const bough = new THREE.Mesh(new THREE.TubeGeometry(bCurve, 7, 0.15 * scale, 7, false), barkMat);
       bough.castShadow = true;
       group.add(bough);
 
-      const cluster = new THREE.Mesh(new THREE.IcosahedronGeometry(1.45 * scale, 1), leafMat);
-      cluster.scale.set(1.25, 0.78, 1.25);
+      const cluster = new THREE.Mesh(crownGeo, leafMat);
+      const rs = 1.48 * scale;
+      cluster.scale.set(rs * 1.24, rs * 0.8, rs * 1.24);
       cluster.position.set(dx, topH + 0.35 * scale, dz);
       cluster.castShadow = true;
+      cluster.receiveShadow = true;
       group.add(cluster);
     }
     return group;
   }
 
-  createMountainTreeFern(scale, barkMat, leafMat) {
+  /** Helecho arborescente Cyathea realista con corona fibrosa y frondas arqueadas plumosas. */
+  createMountainTreeFern(scale, barkMat, fernMat, frondGeo, rand) {
     const group = new THREE.Group();
-    const topY = 4.2 * scale;
+    const topY = (3.6 + rand() * 0.8) * scale;
+    const tipX = 0.18 * scale;
+    const tipZ = (rand() - 0.5) * 0.16 * scale;
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0.25 * scale, topY * 0.55, 0.1 * scale),
-      new THREE.Vector3(0.15 * scale, topY, 0)
+      new THREE.Vector3(0.24 * scale, topY * 0.55, tipZ * 0.5),
+      new THREE.Vector3(tipX, topY, tipZ)
     ]);
     const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 9, 0.13 * scale, 7, false), barkMat);
     trunk.castShadow = true;
     group.add(trunk);
 
-    for (let f = 0; f < 8; f++) {
-      const ang = (f / 8) * Math.PI * 2;
-      const frond = new THREE.Mesh(
-        new THREE.BoxGeometry(0.45 * scale, 0.04 * scale, 1.95 * scale),
-        leafMat
-      );
-      frond.position.set(
-        0.15 * scale + Math.cos(ang) * 0.95 * scale,
-        topY + 0.15 * scale,
-        Math.sin(ang) * 0.95 * scale
-      );
-      frond.rotation.y = -ang + Math.PI / 2;
-      frond.rotation.x = 0.25;
+    // Yema apical fibrosa en la cima del tronco de donde brotan todas las frondas
+    const crownHub = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18 * scale, 9, 8),
+      barkMat
+    );
+    crownHub.position.set(tipX, topY, tipZ);
+    group.add(crownHub);
+
+    // Corona exterior de 9 frondas largas arqueadas
+    const outerCount = 9;
+    for (let f = 0; f < outerCount; f++) {
+      const ang = (f / outerCount) * Math.PI * 2 + (rand() - 0.5) * 0.16;
+      const frond = new THREE.Mesh(frondGeo, fernMat);
+      const s = scale * (0.92 + rand() * 0.16);
+      frond.scale.set(s, s, s);
+      frond.position.set(tipX, topY + 0.02 * scale, tipZ);
+      frond.rotation.y = ang;
+      frond.rotation.x = -0.14 - rand() * 0.12;
+      frond.castShadow = true;
+      group.add(frond);
+    }
+
+    // Corona interior de 4 frondas jóvenes erguidas
+    for (let f = 0; f < 4; f++) {
+      const ang = (f / 4) * Math.PI * 2 + 0.4;
+      const frond = new THREE.Mesh(frondGeo, fernMat);
+      const s = scale * 0.62;
+      frond.scale.set(s, s, s);
+      frond.position.set(tipX, topY + 0.06 * scale, tipZ);
+      frond.rotation.y = ang;
+      frond.rotation.x = -0.58;
       frond.castShadow = true;
       group.add(frond);
     }
@@ -1692,6 +2189,9 @@ export class TrailScene {
     }
 
     this.applyCameraTransform();
+    if (this.skyMesh) {
+      this.skyMesh.position.copy(this.camera.position);
+    }
     this.renderer.render(this.scene, this.camera);
   }
 

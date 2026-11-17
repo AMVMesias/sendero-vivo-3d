@@ -47,8 +47,9 @@ export function createSkyWithCloudsMaterial(timeUniform) {
     vertexShader: `
       varying vec3 vWorldDir;
       void main() {
+        // Dirección local normalizada para centrar el domo celeste siempre en la cámara sin recortes
+        vWorldDir = normalize(position);
         vec4 worldPos = modelMatrix * vec4(position, 1.0);
-        vWorldDir = normalize(worldPos.xyz);
         gl_Position = projectionMatrix * viewMatrix * worldPos;
       }
     `,
@@ -333,50 +334,121 @@ export function createRiverShaderMaterial(timeUniform, waterTexture, fogColor, f
 }
 
 /**
- * Mejora el material del terreno mediante onBeforeCompile para romper repetición
- * de texturas con variación orgánica de musgo, claros soleados y humedad en orillas.
+ * Mezcla multizona del terreno mediante onBeforeCompile usando 4 texturas reales/procedurales:
+ * suelo de bosque oscuro, pradera con trébol y flores, cantos rodados de río y roca andina.
  */
-export function enhanceTerrainMaterialWithShader(material) {
+export function enhanceTerrainMaterialWithShader(material, { meadowTex, pebblesTex, rockTex }) {
   material.onBeforeCompile = (shader) => {
+    shader.uniforms.uMeadowTex = { value: meadowTex };
+    shader.uniforms.uPebblesTex = { value: pebblesTex };
+    shader.uniforms.uRockTex = { value: rockTex };
+
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
         `#include <common>
-         varying vec3 vTerrainWorldPos;`
+         attribute vec4 aTerrainZones;
+         varying vec3 vTerrainWorldPos;
+         varying vec4 vTerrainZones;`
       )
       .replace(
         '#include <worldpos_vertex>',
         `#include <worldpos_vertex>
-         vTerrainWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`
+         vTerrainWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+         vTerrainZones = aTerrainZones;`
       );
 
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
         `#include <common>
+         uniform sampler2D uMeadowTex;
+         uniform sampler2D uPebblesTex;
+         uniform sampler2D uRockTex;
          varying vec3 vTerrainWorldPos;
+         varying vec4 vTerrainZones;
+         ${NOISE_GLSL}`
+      )
+      .replace(
+        '#include <map_fragment>',
+        `#ifdef USE_MAP
+           vec3 colForest = texture2D(map, vTerrainWorldPos.xz * 0.16).rgb;
+           vec3 colMeadow = texture2D(uMeadowTex, vTerrainWorldPos.xz * 0.17).rgb;
+           vec3 colPebbles = texture2D(uPebblesTex, vTerrainWorldPos.xz * 0.28).rgb;
+           vec3 colRock = texture2D(uRockTex, vTerrainWorldPos.xz * 0.11).rgb;
+
+           float patchNoise = fbm(vTerrainWorldPos.xz * 0.085);
+           float detailNoise = valueNoise(vTerrainWorldPos.xz * 0.38);
+
+           float wForest = max(0.0, vTerrainZones.x + (0.52 - patchNoise) * 0.42);
+           float wMeadow = max(0.0, vTerrainZones.y + (patchNoise - 0.40) * 0.62);
+           float wPebbles = max(0.0, vTerrainZones.z + (detailNoise - 0.5) * 0.16);
+           float wRock = max(0.0, vTerrainZones.w + (patchNoise - 0.46) * 0.34);
+
+           float wSum = max(0.001, wForest + wMeadow + wPebbles + wRock);
+           vec3 zoneTex = (
+             colForest * wForest +
+             colMeadow * wMeadow +
+             colPebbles * wPebbles +
+             colRock * wRock
+           ) / wSum;
+
+           vec3 lushTint = mix(vec3(0.92, 0.90, 0.86), vec3(0.96, 1.04, 0.90), smoothstep(0.32, 0.74, patchNoise));
+           zoneTex *= lushTint * (0.91 + detailNoise * 0.16);
+
+           // Oscurecimiento húmedo cerca de la cota del arroyo y poza
+           float wetness = 1.0 - smoothstep(0.85, 1.48, vTerrainWorldPos.y);
+           zoneTex *= mix(1.0, 0.62, wetness);
+
+           diffuseColor.rgb *= zoneTex;
+         #endif`
+      );
+  };
+  material.customProgramCacheKey = () => 'terrain-multizone-shader-v2';
+}
+
+/**
+ * Añade musgo orgánico húmedo en la base y caras sombreadas de los troncos mediante shader.
+ */
+export function enhanceBarkWithMossShader(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         varying vec3 vBarkLocalPos;
+         varying vec3 vBarkWorldPos;`
+      )
+      .replace(
+        '#include <worldpos_vertex>',
+        `#include <worldpos_vertex>
+         vBarkLocalPos = position;
+         vBarkWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`
+      );
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         varying vec3 vBarkLocalPos;
+         varying vec3 vBarkWorldPos;
          ${NOISE_GLSL}`
       )
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
-         float macroPatch = fbm(vTerrainWorldPos.xz * 0.085);
-         float microDapple = valueNoise(vTerrainWorldPos.xz * 0.38);
-         vec3 lushMoss = vec3(0.76, 0.92, 0.72);
-         vec3 richEarth = vec3(0.66, 0.58, 0.49);
-         vec3 macroTint = mix(richEarth, lushMoss, smoothstep(0.32, 0.72, macroPatch));
-         diffuseColor.rgb *= mix(vec3(0.88), macroTint, 0.48);
-         diffuseColor.rgb *= (0.90 + microDapple * 0.18);
-         // Oscurecimiento húmedo cerca de la cota del arroyo
-         float wetness = 1.0 - smoothstep(0.8, 1.45, vTerrainWorldPos.y);
-         diffuseColor.rgb *= mix(1.0, 0.68, wetness);`
+         float mossNoise = fbm(vBarkWorldPos.xz * 1.1 + vec2(0.0, vBarkLocalPos.y * 0.85));
+         float baseFactor = 1.0 - smoothstep(0.15, 1.65, max(0.0, vBarkLocalPos.y));
+         float patchMoss = smoothstep(0.42, 0.75, mossNoise + baseFactor * 0.48);
+         vec3 mossColor = vec3(0.16, 0.28, 0.12);
+         diffuseColor.rgb = mix(diffuseColor.rgb, mossColor, clamp(patchMoss * 0.62, 0.0, 0.65));`
       );
   };
-  material.customProgramCacheKey = () => 'terrain-macro-shader-v1';
+  material.customProgramCacheKey = () => 'bark-moss-shader-v1';
 }
 
 /**
- * Añade balanceo suave por brisa en el shader de vértices de copas y helechos.
+ * Añade balanceo suave por brisa en el shader de vértices de copas, arbustos y frondas.
  */
 export function enhanceFoliageWithWindShader(material, timeUniform) {
   material.onBeforeCompile = (shader) => {
@@ -391,10 +463,11 @@ export function enhanceFoliageWithWindShader(material, timeUniform) {
         '#include <begin_vertex>',
         `#include <begin_vertex>
          vec4 instWorld = modelMatrix * vec4(transformed, 1.0);
-         float sway = sin(uWindTime * 1.35 + instWorld.x * 0.45 + instWorld.z * 0.4) * 0.085;
-         transformed.x += sway * max(0.0, position.y + 0.5);
-         transformed.z += cos(uWindTime * 1.1 + instWorld.z * 0.5) * 0.055 * max(0.0, position.y + 0.5);`
+         float sway = sin(uWindTime * 1.35 + instWorld.x * 0.45 + instWorld.z * 0.4) * 0.07;
+         float lift = clamp(length(position.xz) * 0.42 + max(0.0, position.y) * 0.55, 0.0, 2.2);
+         transformed.x += sway * lift;
+         transformed.z += cos(uWindTime * 1.1 + instWorld.z * 0.5) * 0.048 * lift;`
       );
   };
-  material.customProgramCacheKey = () => 'foliage-wind-shader-v1';
+  material.customProgramCacheKey = () => 'foliage-wind-shader-v2';
 }
