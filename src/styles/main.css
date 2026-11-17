@@ -42,7 +42,9 @@ body {
   padding: 0;
   width: 100%;
   height: 100%;
+  height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
   font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: calc(16px * var(--font-scale));
   color: var(--text-primary);
@@ -80,6 +82,16 @@ input:focus-visible,
   z-index: 0;
 }
 
+#scene-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 /* Capa HUD accesible */
 .hud {
   position: fixed;
@@ -89,7 +101,8 @@ input:focus-visible,
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 16px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   gap: 12px;
 }
 
@@ -573,17 +586,19 @@ input:focus-visible,
 
 @media (max-width: 900px) {
   .hud {
-    padding: 10px;
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+      max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    gap: 8px;
   }
 
   .story-column {
     max-width: 100%;
     height: auto;
-    max-height: 55%;
+    max-height: 100%;
   }
 
   .story-card {
-    max-height: 42vh;
+    max-height: 44dvh;
   }
 
   .middle-area {
@@ -591,11 +606,273 @@ input:focus-visible,
     align-items: stretch;
   }
 
-  .a11y-panel {
+  .bottom-dock {
+    justify-content: center;
+  }
+}
+
+/* Optimización dedicada para teléfonos móviles */
+@media (max-width: 768px) {
+  .topbar {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .brand-card {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 11px;
+    gap: 8px;
+    border-radius: 14px;
+  }
+
+  .brand-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .brand-title {
+    font-size: 0.96rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .brand-subtitle {
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .topbar-actions {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    gap: 6px;
+  }
+
+  .topbar-actions .btn {
+    min-height: 42px;
+    min-width: 42px;
+    padding: 6px 10px;
+  }
+
+  .story-toolbar {
     width: 100%;
+    justify-content: space-between;
+  }
+
+  .story-toolbar .btn-compact {
+    min-height: 38px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+  }
+
+  .distance-pill {
+    padding: 6px 11px;
+    font-size: 0.78rem;
+  }
+
+  .story-card {
+    max-height: 46dvh;
+    padding: 14px 15px;
+    border-radius: 16px;
+  }
+
+  .story-title {
+    font-size: 1.15rem;
+  }
+
+  .highlights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .a11y-panel {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: auto;
+    max-height: 74dvh;
+    z-index: 25;
+    padding: 16px;
+    border-radius: 18px;
   }
 
   .bottom-dock {
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 10px;
+    border-radius: 16px;
+  }
+
+  .station-nav-group {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .station-nav-group > .btn-compact {
+    flex-shrink: 0;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 6px;
+  }
+
+  .station-pills {
+    flex: 1;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    gap: 6px;
+    padding: 2px 0;
+  }
+
+  .station-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .station-pills .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-height: 36px;
+    padding: 5px 11px;
+    font-size: 0.78rem;
+    scroll-snap-align: center;
+  }
+
+  .bottom-dock > .dock-group:first-child {
+    grid-column: 1;
+    grid-row: 2;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 5px;
+  }
+
+  .bottom-dock > .dock-group:last-child {
+    grid-column: 2;
+    grid-row: 2;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 5px;
+  }
+
+  .bottom-dock > .dock-group:not(.station-nav-group) .btn {
+    min-height: 40px;
+    min-width: 34px;
+    padding: 4px;
+    flex: 1 1 0;
+  }
+
+  .scene-tooltip {
+    bottom: 122px;
+    max-width: calc(100vw - 24px);
+    text-align: center;
+    font-size: 0.8rem;
+  }
+
+  .modal-backdrop {
+    padding: 12px;
+  }
+
+  .modal-card {
+    max-height: 86dvh;
+    padding: 18px 16px;
+    border-radius: 18px;
+  }
+
+  .modal-card h2 {
+    font-size: 1.24rem;
+  }
+
+  .modal-card p,
+  .modal-list {
+    font-size: 0.9rem;
+    line-height: 1.48;
+  }
+
+  .modal-actions .btn {
+    width: 100%;
+  }
+}
+
+/* Teléfonos y pantallas compactas (<= 768px): botones de barra en modo icono compacto */
+@media (max-width: 768px) {
+  .topbar-actions .btn .btn-label,
+  .bottom-dock > .dock-group:not(.station-nav-group) .btn .btn-label {
+    display: none;
+  }
+
+  .topbar-actions .btn {
+    padding: 6px;
+  }
+}
+
+@media (max-width: 460px) {
+  .brand-subtitle {
+    display: none;
+  }
+}
+
+/* Teléfono en orientación horizontal (landscape) */
+@media (max-height: 500px) and (max-width: 950px) {
+  .hud {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .topbar {
+    flex-wrap: nowrap;
+  }
+
+  .brand-card {
+    padding: 5px 10px;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .topbar-actions .btn .btn-label,
+  .bottom-dock > .dock-group:not(.station-nav-group) .btn .btn-label {
+    display: none;
+  }
+
+  .story-card {
+    max-height: 52dvh;
+  }
+
+  .bottom-dock {
+    padding: 6px 8px;
+    gap: 5px;
+    flex-wrap: nowrap;
+  }
+
+  .station-nav-group {
+    flex: 1;
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
+  .station-pills {
+    flex: 1;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .station-pills .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 }

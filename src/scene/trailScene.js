@@ -324,17 +324,25 @@ export class TrailScene {
     return tex;
   }
 
+  getResponsiveFov(aspect) {
+    if (aspect < 0.72) return 72;
+    if (aspect < 1.0) return 64;
+    return 56;
+  }
+
   initRenderer() {
+    const isCompactViewport = window.innerWidth < 768;
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance'
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isCompactViewport ? 1.5 : 2));
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.06;
+    this.renderer.domElement.style.touchAction = 'none';
     this.container.appendChild(this.renderer.domElement);
   }
 
@@ -346,7 +354,7 @@ export class TrailScene {
     this.scene.fog = new THREE.FogExp2(this.fogColor.getHex(), this.fogDensity);
 
     const aspect = this.container.clientWidth / Math.max(1, this.container.clientHeight);
-    this.camera = new THREE.PerspectiveCamera(56, aspect, 0.1, 750);
+    this.camera = new THREE.PerspectiveCamera(this.getResponsiveFov(aspect), aspect, 0.1, 750);
 
     const hemiLight = new THREE.HemisphereLight(0xf1f8f5, 0x384b34, 1.02);
     this.scene.add(hemiLight);
@@ -354,8 +362,9 @@ export class TrailScene {
     const sunLight = new THREE.DirectionalLight(0xfff0d4, 1.58);
     sunLight.position.set(-45, 58, 36);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
+    const shadowRes = window.innerWidth < 768 ? 1024 : 2048;
+    sunLight.shadow.mapSize.width = shadowRes;
+    sunLight.shadow.mapSize.height = shadowRes;
     sunLight.shadow.camera.near = 5;
     sunLight.shadow.camera.far = 220;
     const d = 100;
@@ -2054,8 +2063,11 @@ export class TrailScene {
 
   bindEvents() {
     const dom = this.renderer.domElement;
+    this.activePointerId = null;
 
     this.onPointerDown = (e) => {
+      if (this.activePointerId !== null && this.activePointerId !== e.pointerId) return;
+      this.activePointerId = e.pointerId;
       this.isDragging = true;
       this.dragMoved = false;
       this.lastPointer = { x: e.clientX, y: e.clientY };
@@ -2066,16 +2078,20 @@ export class TrailScene {
       this.pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       this.pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
-      if (this.isDragging) {
+      if (this.isDragging && e.pointerId === this.activePointerId) {
         const dx = e.clientX - this.lastPointer.x;
         const dy = e.clientY - this.lastPointer.y;
         if (Math.abs(dx) + Math.abs(dy) > 4) this.dragMoved = true;
         this.lastPointer = { x: e.clientX, y: e.clientY };
-        this.targetYaw += dx * 0.0042;
-        this.targetPitch = Math.max(-0.5, Math.min(0.45, this.targetPitch + dy * 0.0034));
+        const isTouch = e.pointerType === 'touch';
+        const yawSens = isTouch ? 0.0058 : 0.0042;
+        const pitchSens = isTouch ? 0.0044 : 0.0034;
+        this.targetYaw += dx * yawSens;
+        this.targetPitch = Math.max(-0.5, Math.min(0.45, this.targetPitch + dy * pitchSens));
         return;
       }
 
+      if (e.pointerType === 'touch') return;
       this.raycaster.setFromCamera(this.pointerNDC, this.camera);
       const hits = this.raycaster.intersectObjects(this.markers, true);
       dom.style.cursor = hits.length > 0 ? 'pointer' : 'grab';
@@ -2083,8 +2099,10 @@ export class TrailScene {
     };
 
     this.onPointerUp = (e) => {
+      if (e.pointerId !== this.activePointerId) return;
       const wasClick = this.isDragging && !this.dragMoved;
       this.isDragging = false;
+      this.activePointerId = null;
       if (wasClick) {
         const rect = dom.getBoundingClientRect();
         this.pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2097,18 +2115,29 @@ export class TrailScene {
       }
     };
 
+    this.onPointerCancel = (e) => {
+      if (e.pointerId === this.activePointerId) {
+        this.isDragging = false;
+        this.activePointerId = null;
+      }
+    };
+
     this.onResize = () => {
       if (!this.container) return;
       const w = this.container.clientWidth;
       const h = Math.max(1, this.container.clientHeight);
-      this.camera.aspect = w / h;
+      const aspect = w / h;
+      this.camera.aspect = aspect;
+      this.camera.fov = this.getResponsiveFov(aspect);
       this.camera.updateProjectionMatrix();
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, w < 768 ? 1.5 : 2));
       this.renderer.setSize(w, h);
     };
 
     dom.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointermove', this.onPointerMove);
     window.addEventListener('pointerup', this.onPointerUp);
+    window.addEventListener('pointercancel', this.onPointerCancel);
     window.addEventListener('resize', this.onResize);
   }
 
@@ -2201,6 +2230,7 @@ export class TrailScene {
     dom.removeEventListener('pointerdown', this.onPointerDown);
     window.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerup', this.onPointerUp);
+    window.removeEventListener('pointercancel', this.onPointerCancel);
     window.removeEventListener('resize', this.onResize);
     this.renderer.dispose();
   }

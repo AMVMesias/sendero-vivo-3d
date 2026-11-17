@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Sendero Vivo 3D — Ecoturismo Comunitario y Naturaleza Accesible</title>
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
@@ -28,6 +28,7 @@
             type="button"
             class="btn"
             aria-pressed="true"
+            aria-label="Sonido natural"
             title="Activar o silenciar el paisaje sonoro del bosque"
           >
             <span class="btn-icon" data-icon="audioOn"></span>
@@ -39,11 +40,19 @@
             class="btn"
             aria-expanded="false"
             aria-controls="a11y-panel"
+            aria-label="Accesibilidad"
+            title="Abrir configuración de accesibilidad"
           >
             <span class="btn-icon" data-icon="accessibility"></span>
             <span class="btn-label">Accesibilidad</span>
           </button>
-          <button id="btn-open-lab" type="button" class="btn">
+          <button
+            id="btn-open-lab"
+            type="button"
+            class="btn"
+            aria-label="Ficha Lab 1"
+            title="Abrir ficha del proyecto Lab 1"
+          >
             <span class="btn-icon" data-icon="document"></span>
             <span class="btn-label">Ficha Lab 1</span>
           </button>
@@ -182,23 +191,53 @@
       <!-- Barra inferior de navegación -->
       <footer class="bottom-dock" aria-label="Navegación por el sendero">
         <div class="dock-group" role="group" aria-label="Control de mirada y avance continuo">
-          <button id="btn-look-left" type="button" class="btn btn-compact" title="Girar vista a la izquierda">
+          <button
+            id="btn-look-left"
+            type="button"
+            class="btn btn-compact"
+            aria-label="Girar vista a la izquierda"
+            title="Girar vista a la izquierda"
+          >
             <span class="btn-icon" data-icon="lookLeft"></span>
             <span class="btn-label">Izquierda</span>
           </button>
-          <button id="btn-look-center" type="button" class="btn btn-compact" title="Centrar vista en el sendero">
+          <button
+            id="btn-look-center"
+            type="button"
+            class="btn btn-compact"
+            aria-label="Centrar vista en el sendero"
+            title="Centrar vista en el sendero"
+          >
             <span class="btn-icon" data-icon="recenter"></span>
             <span class="btn-label">Centrar</span>
           </button>
-          <button id="btn-look-right" type="button" class="btn btn-compact" title="Girar vista a la derecha">
+          <button
+            id="btn-look-right"
+            type="button"
+            class="btn btn-compact"
+            aria-label="Girar vista a la derecha"
+            title="Girar vista a la derecha"
+          >
             <span class="btn-icon" data-icon="lookRight"></span>
             <span class="btn-label">Derecha</span>
           </button>
-          <button id="btn-step-back" type="button" class="btn btn-compact" title="Retroceder por la pasarela (Tecla S o Abajo)">
+          <button
+            id="btn-step-back"
+            type="button"
+            class="btn btn-compact"
+            aria-label="Retroceder por la pasarela"
+            title="Retroceder por la pasarela (Tecla S o Abajo)"
+          >
             <span class="btn-icon" data-icon="trailBack"></span>
             <span class="btn-label">Retroceder</span>
           </button>
-          <button id="btn-step-forward" type="button" class="btn btn-compact" title="Avanzar por la pasarela (Tecla W o Arriba)">
+          <button
+            id="btn-step-forward"
+            type="button"
+            class="btn btn-compact"
+            aria-label="Avanzar por la pasarela"
+            title="Avanzar por la pasarela (Tecla W o Arriba)"
+          >
             <span class="btn-icon" data-icon="trailForward"></span>
             <span class="btn-label">Avanzar</span>
           </button>
@@ -215,11 +254,25 @@
         </div>
 
         <div class="dock-group">
-          <button id="btn-autotour" type="button" class="btn btn-compact" aria-pressed="false">
+          <button
+            id="btn-autotour"
+            type="button"
+            class="btn btn-compact"
+            aria-pressed="false"
+            aria-label="Paseo guiado automático"
+            title="Activar o pausar paseo guiado"
+          >
             <span class="btn-icon" data-icon="play"></span>
             <span class="btn-label">Paseo guiado</span>
           </button>
-          <button id="btn-quick-perspective" type="button" class="btn btn-compact" aria-pressed="true">
+          <button
+            id="btn-quick-perspective"
+            type="button"
+            class="btn btn-compact"
+            aria-pressed="true"
+            aria-label="Cambiar altura de perspectiva (1,15 m o 1,65 m)"
+            title="Alternar entre silla de ruedas (1,15 m) y de pie (1,65 m)"
+          >
             <span class="btn-icon" data-icon="wheelchair"></span>
             <span class="btn-label">Vista 1,15 m</span>
           </button>
@@ -239,8 +292,8 @@
           <strong>personas con movilidad reducida y adultos mayores</strong> que no pueden acceder físicamente a senderos rurales o de montaña.
         </p>
         <ul class="modal-list">
-          <li><strong>6 estaciones conectadas:</strong> salta con teclas <code>1–6</code> o avanza tramo a tramo con <code>W / S</code> o botones.</li>
-          <li><strong>Paseo guiado automático:</strong> recorre la pasarela sin mover el ratón.</li>
+          <li><strong>6 estaciones conectadas:</strong> toca una estación, desliza con el dedo o usa <code>W / S</code> y teclas <code>1–6</code>.</li>
+          <li><strong>Paseo guiado automático:</strong> recorre la pasarela sin mover el ratón ni tocar la pantalla.</li>
           <li><strong>Audio natural y narración por voz:</strong> escucha el bosque, la cascada y los relatos comunitarios.</li>
           <li><strong>Perspectiva ergonómica:</strong> alterna entre altura de silla de ruedas (1,15 m) y de pie (1,65 m).</li>
         </ul>

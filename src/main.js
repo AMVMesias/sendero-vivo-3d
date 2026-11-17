@@ -33,6 +33,11 @@ class SenderoVivoApp {
     this.buildStationPills();
     this.bindEvents();
     this.applyReducedMotion(this.reducedMotion);
+    // En pantallas de teléfono (vertical u horizontal), iniciar con el relato colapsado
+    const isPhoneQuery = '(max-width: 768px), (max-height: 520px) and (max-width: 950px)';
+    if (window.matchMedia?.(isPhoneQuery).matches) {
+      this.setStoryExpanded(false);
+    }
     this.selectStation(0, { announce: false });
   }
 
@@ -156,6 +161,9 @@ class SenderoVivoApp {
       const willOpen = el.a11yPanel.hidden;
       el.a11yPanel.hidden = !willOpen;
       el.btnToggleA11y.setAttribute('aria-expanded', String(willOpen));
+      if (willOpen && window.matchMedia?.('(max-width: 768px)').matches) {
+        this.setStoryExpanded(false);
+      }
     });
 
     el.btnCloseA11y.addEventListener('click', () => {
@@ -164,13 +172,8 @@ class SenderoVivoApp {
     });
 
     el.btnToggleStory.addEventListener('click', () => {
-      const isHidden = el.storyCard.classList.toggle('is-hidden');
-      el.btnToggleStory.setAttribute('aria-expanded', String(!isHidden));
-      this.setButtonDisplay(
-        el.btnToggleStory,
-        'story',
-        isHidden ? 'Mostrar relato' : 'Ocultar relato'
-      );
+      const currentlyHidden = el.storyCard.classList.contains('is-hidden');
+      this.setStoryExpanded(currentlyHidden);
     });
 
     el.btnNarrate.addEventListener('click', () => {
@@ -337,10 +340,29 @@ class SenderoVivoApp {
       const active = idx === index;
       btn.classList.toggle('btn-active', active);
       btn.setAttribute('aria-selected', String(active));
+      if (active) {
+        btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
     });
 
     if (announce) {
       this.announce(`Estación ${station.number}: ${station.title}. ${station.subtitle}`);
+    }
+  }
+
+  setStoryExpanded(expanded) {
+    const isExpanded = Boolean(expanded);
+    const el = this.elements;
+    el.storyCard.classList.toggle('is-hidden', !isExpanded);
+    el.btnToggleStory.setAttribute('aria-expanded', String(isExpanded));
+    this.setButtonDisplay(
+      el.btnToggleStory,
+      'story',
+      isExpanded ? 'Ocultar relato' : 'Ver relato'
+    );
+    if (isExpanded && window.matchMedia?.('(max-width: 768px)').matches) {
+      el.a11yPanel.hidden = true;
+      el.btnToggleA11y.setAttribute('aria-expanded', 'false');
     }
   }
 
