@@ -451,38 +451,87 @@ export function enhanceBarkWithMossShader(material) {
   material.customProgramCacheKey = () => 'bark-moss-shader-v2';
 }
 
+const FLUFFY_LEAF_PROJECT_VERTEX_GLSL = `
+  vec4 worldCenter = vec4(transformed, 1.0);
+  float instScale = 1.0;
+  #ifdef USE_INSTANCING
+    instScale = length(vec3(instanceMatrix[0].xyz));
+    worldCenter = instanceMatrix * worldCenter;
+  #endif
+  worldCenter = modelMatrix * worldCenter;
+
+  float windWave = sin(uWindTime * 1.45 + worldCenter.x * 0.42 + worldCenter.z * 0.38 + worldCenter.y * 0.25);
+  worldCenter.x += windWave * 0.055;
+  worldCenter.z += cos(uWindTime * 1.15 + worldCenter.z * 0.48) * 0.04;
+
+  vec4 mvPosition = viewMatrix * worldCenter;
+
+  float roll = aLeafCorner.w + windWave * 0.045;
+  float rc = cos(roll);
+  float rs = sin(roll);
+  vec2 rotatedCorner = vec2(
+    aLeafCorner.x * rc - aLeafCorner.y * rs,
+    aLeafCorner.x * rs + aLeafCorner.y * rc
+  );
+  mvPosition.xy += rotatedCorner * aLeafCorner.z * instScale;
+  gl_Position = projectionMatrix * mvPosition;
+`;
+
 /**
- * Añade balanceo por viento anclado al pecíolo (uv.y = 0) para tarjetas foliares botánicas e instancias.
+ * Renderiza ramilletes foliares volumétricos orientados suavemente hacia la cámara
+ * (elimina aristas planas en cruz) con oclusión ambiental de copa y brisa en instancias.
  */
-export function enhanceLeafCardWindShader(material, timeUniform) {
+export function enhanceFluffyLeafMaterial(material, timeUniform) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uWindTime = timeUniform;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
         `#include <common>
-         uniform float uWindTime;`
+         uniform float uWindTime;
+         attribute vec4 aLeafCorner;
+         attribute float aLeafShade;
+         varying float vLeafShade;`
       )
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-         vec4 leafWorldBase = vec4(transformed, 1.0);
-         #ifdef USE_INSTANCING
-           leafWorldBase = instanceMatrix * leafWorldBase;
-         #endif
-         vec4 leafWorld = modelMatrix * leafWorldBase;
-         #ifdef USE_UV
-           float flutter = uv.y;
-         #else
-           float flutter = 0.5;
-         #endif
-         float windPhase = leafWorld.x * 0.48 + leafWorld.z * 0.42 + leafWorld.y * 0.25;
-         transformed.x += sin(uWindTime * 1.65 + windPhase) * 0.055 * flutter;
-         transformed.z += cos(uWindTime * 1.35 + windPhase * 1.15) * 0.042 * flutter;
-         transformed.y += sin(uWindTime * 2.1 + windPhase * 0.7) * 0.015 * flutter;`
+         vLeafShade = aLeafShade;`
+      )
+      .replace('#include <project_vertex>', FLUFFY_LEAF_PROJECT_VERTEX_GLSL);
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         varying float vLeafShade;`
+      )
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+         diffuseColor.rgb *= vLeafShade;
+         diffuseColor.rgb += diffuseColor.rgb * 0.14 * max(0.0, vLeafShade - 0.85);`
       );
   };
-  material.customProgramCacheKey = () => 'leaf-card-wind-shader-v1';
+  material.customProgramCacheKey = () => 'fluffy-leaf-cluster-v1';
+}
+
+/**
+ * Sincroniza la geometría billboard en el pase de sombras direccionales para sombras caladas reales.
+ */
+export function enhanceFluffyDepthMaterial(depthMaterial, timeUniform) {
+  depthMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.uWindTime = timeUniform;
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         uniform float uWindTime;
+         attribute vec4 aLeafCorner;`
+      )
+      .replace('#include <project_vertex>', FLUFFY_LEAF_PROJECT_VERTEX_GLSL);
+  };
+  depthMaterial.customProgramCacheKey = () => 'fluffy-leaf-depth-v1';
 }
 
 /**

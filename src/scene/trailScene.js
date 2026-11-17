@@ -7,7 +7,8 @@ import {
   createRiverShaderMaterial,
   enhanceTerrainMaterialWithShader,
   enhanceBarkWithMossShader,
-  enhanceLeafCardWindShader,
+  enhanceFluffyLeafMaterial,
+  enhanceFluffyDepthMaterial,
   enhanceFoliageWithWindShader
 } from './shaders.js';
 import { buildProceduralTreeGeometries } from './realisticTrees.js';
@@ -106,15 +107,14 @@ export class TrailScene {
       wood: loadTex('/textures/wood_planks.jpg', 1, 1),
       woodBeam: loadTex('/textures/wood_planks.jpg', 1, 3),
       rock: loadTex('/textures/cliff_rock.jpg', 3, 3),
-      bark: loadTex('/textures/tree_bark.jpg', 2, 4),
-      barkBirch: loadTex('/textures/bark_birch_pale.jpg', 2, 4),
-      barkCedar: loadTex('/textures/bark_red_cedar.jpg', 2, 4),
+      bark: loadTex('/textures/tree_bark.jpg', 1, 1),
+      barkBirch: loadTex('/textures/bark_birch_pale.jpg', 1, 1),
+      barkCedar: loadTex('/textures/bark_red_cedar.jpg', 1, 1),
       foliage: loadTex('/textures/foliage_canopy.jpg', 2, 2),
       foliageGolden: loadTex('/textures/foliage_golden_olive.jpg', 2, 2),
-      leafOak: loadLeafTex('/textures/leaves/oak_color.png'),
-      leafAsh: loadLeafTex('/textures/leaves/ash_color.png'),
-      leafAspen: loadLeafTex('/textures/leaves/aspen_color.png'),
-      leafPine: loadLeafTex('/textures/leaves/pine_color.png'),
+      leafBroadleaf: loadLeafTex('/textures/leaves/cluster_broadleaf.png'),
+      leafOlive: loadLeafTex('/textures/leaves/cluster_olive.png'),
+      leafConifer: loadLeafTex('/textures/leaves/cluster_conifer.png'),
       fernFrond: this.createFernFrondTexture(),
       textile: loadTex('/textures/andean_textile.jpg', 1, 1.3),
       welcomeMap: loadTex('/textures/welcome_map.jpg', 1, 1),
@@ -123,7 +123,7 @@ export class TrailScene {
     };
   }
 
-  /** Biblioteca compartida de cortezas con musgo GLSL y tarjetas foliares con recorte alfa. */
+  /** Biblioteca compartida de cortezas con musgo GLSL y ramilletes foliares volumétricos. */
   createTreeMaterialLibrary() {
     const barkSpecs = {
       oak: { tex: this.textures.bark, color: 0xf4eee4, bump: 0.09 },
@@ -144,10 +144,9 @@ export class TrailScene {
     }
 
     const leafSpecs = {
-      oak: { tex: this.textures.leafOak, tint: 0xdff2d2, alphaTest: 0.42 },
-      ash: { tex: this.textures.leafAsh, tint: 0xe6f4d9, alphaTest: 0.42 },
-      aspen: { tex: this.textures.leafAspen, tint: 0xcfe888, alphaTest: 0.42 },
-      pine: { tex: this.textures.leafPine, tint: 0xdcf0d4, alphaTest: 0.34 }
+      broadleaf: { tex: this.textures.leafBroadleaf, tint: 0xf2f9eb, alphaTest: 0.44 },
+      olive: { tex: this.textures.leafOlive, tint: 0xf4fae8, alphaTest: 0.44 },
+      conifer: { tex: this.textures.leafConifer, tint: 0xeaf5e2, alphaTest: 0.36 }
     };
     const leaves = {};
     const leafDepth = {};
@@ -157,16 +156,19 @@ export class TrailScene {
         color: spec.tint,
         alphaTest: spec.alphaTest,
         side: THREE.DoubleSide,
-        roughness: 0.78,
+        roughness: 0.8,
         metalness: 0.02
       });
-      enhanceLeafCardWindShader(mat, this.uTime);
+      enhanceFluffyLeafMaterial(mat, this.uTime);
       leaves[key] = mat;
-      leafDepth[key] = new THREE.MeshDepthMaterial({
+
+      const depthMat = new THREE.MeshDepthMaterial({
         depthPacking: THREE.RGBADepthPacking,
         map: spec.tex,
         alphaTest: spec.alphaTest
       });
+      enhanceFluffyDepthMaterial(depthMat, this.uTime);
+      leafDepth[key] = depthMat;
     }
     return { bark, leaves, leafDepth };
   }
@@ -889,7 +891,7 @@ export class TrailScene {
 
     const treeData = buildProceduralTreeGeometries('grandfather', 7142);
     const barkMat = this.treeMaterials.bark.oak;
-    const leafMat = this.treeMaterials.leaves.oak;
+    const leafMat = this.treeMaterials.leaves.broadleaf;
 
     const branchMesh = new THREE.Mesh(treeData.branchGeo, barkMat);
     branchMesh.castShadow = true;
@@ -899,7 +901,7 @@ export class TrailScene {
     const leafMesh = new THREE.Mesh(treeData.leafGeo, leafMat);
     leafMesh.castShadow = true;
     leafMesh.receiveShadow = true;
-    leafMesh.customDepthMaterial = this.treeMaterials.leafDepth.oak;
+    leafMesh.customDepthMaterial = this.treeMaterials.leafDepth.broadleaf;
     treeGroup.add(leafMesh);
 
     // Raíces tablares musgosas abrazando la base ensanchada del tronco
@@ -1165,10 +1167,10 @@ export class TrailScene {
     branchMesh.receiveShadow = true;
     blossomTree.add(branchMesh);
 
-    const leafMesh = new THREE.Mesh(blossomData.leafGeo, this.treeMaterials.leaves.ash);
+    const leafMesh = new THREE.Mesh(blossomData.leafGeo, this.treeMaterials.leaves.olive);
     leafMesh.castShadow = true;
     leafMesh.receiveShadow = true;
-    leafMesh.customDepthMaterial = this.treeMaterials.leafDepth.ash;
+    leafMesh.customDepthMaterial = this.treeMaterials.leafDepth.olive;
     blossomTree.add(leafMesh);
 
     // Flores andinas ancladas directamente sobre puntas reales de ramas y hojas
@@ -1527,9 +1529,11 @@ export class TrailScene {
 
       const { branchGeo, leafGeo, options } = proto.data;
       const barkMat = this.treeMaterials.bark[options.bark.type] || this.treeMaterials.bark.oak;
-      const leafMat = this.treeMaterials.leaves[options.leaves.type] || this.treeMaterials.leaves.oak;
+      const leafMat =
+        this.treeMaterials.leaves[options.leaves.type] || this.treeMaterials.leaves.broadleaf;
       const depthMat =
-        this.treeMaterials.leafDepth[options.leaves.type] || this.treeMaterials.leafDepth.oak;
+        this.treeMaterials.leafDepth[options.leaves.type] ||
+        this.treeMaterials.leafDepth.broadleaf;
 
       const barkInst = new THREE.InstancedMesh(branchGeo, barkMat, count);
       const leafInst = new THREE.InstancedMesh(leafGeo, leafMat, count);
