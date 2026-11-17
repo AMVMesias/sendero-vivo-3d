@@ -89,7 +89,7 @@ export const STATIONS = [
     guideRole: 'Joven guardiana de vertientes y guía de turismo rural',
     territoryTag: 'Zona Hídrica · Tramo 165 m',
     boardwalkPoint: { x: 16, z: -9 },
-    lookAt: { x: 25.5, y: 5.0, z: -18.5 },
+    lookAt: { x: 25.0, y: 3.9, z: -18.0 },
     waterProximity: 1.0,
     storyParagraphs: [
       'Escucha el golpe constante del agua sobre la piedra. Esta vertiente abastece a treinta familias río abajo, por eso toda la comunidad organiza mingas para proteger los árboles que nacen en la orilla.',

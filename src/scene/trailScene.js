@@ -1,9 +1,19 @@
 import * as THREE from 'three';
+import {
+  createSkyWithCloudsMaterial,
+  createCloudLayerMaterial,
+  createValleyMistMaterial,
+  createWaterfallShaderMaterial,
+  createRiverShaderMaterial,
+  enhanceTerrainMaterialWithShader,
+  enhanceFoliageWithWindShader
+} from './shaders.js';
 
 /**
- * Escena 3D inmersiva de "Sendero Vivo 3D" (recorrido ampliado ~250 m).
- * Incorpora texturas PBR reales, relieve (bump maps), agua animada, árboles con ramaje
- * orgánico, aves en vuelo, señalética ilustrada y navegación ergonómica por pasarela universal.
+ * Escena 3D inmersiva de "Sendero Vivo 3D" (recorrido de 250 m).
+ * Incluye shaders GLSL para cielo con nubes, neblina de valle, cascada curva con espuma,
+ * río con flujo y Fresnel, terreno con variación macro y follaje mecido por la brisa,
+ * además de variedad orgánica de troncos y especies del bosque de niebla.
  */
 export class TrailScene {
   constructor(container, stations, callbacks = {}) {
@@ -17,11 +27,10 @@ export class TrailScene {
     this.wheelchairMode = true;
     this.activeStationIndex = 0;
 
-    // 6 paradas distribuidas a lo largo de la ruta de 250 m
     this.stationTs = [0.02, 0.21, 0.4, 0.6, 0.8, 0.96];
     this.currentT = this.stationTs[0];
     this.targetT = this.stationTs[0];
-    this.travelMode = 'station'; // 'station' | 'free'
+    this.travelMode = 'station';
     this.eyeHeight = 1.15;
     this.targetEyeHeight = 1.15;
 
@@ -35,13 +44,15 @@ export class TrailScene {
     this.lastPointer = { x: 0, y: 0 };
 
     this.clock = new THREE.Clock();
+    this.uTime = { value: 0 };
     this.raycaster = new THREE.Raycaster();
     this.pointerNDC = new THREE.Vector2();
     this.markers = [];
-    this.waterTextures = [];
     this.birds = [];
+    this.cloudMeshes = [];
     this.mistParticles = null;
     this.pollenParticles = null;
+    this.grandfatherTreeLookTarget = null;
     this.animationFrameId = null;
 
     this.loadTextures();
@@ -83,11 +94,12 @@ export class TrailScene {
       foliage: loadTex('/textures/foliage_canopy.jpg', 2, 2),
       textile: loadTex('/textures/andean_textile.jpg', 1, 1.3),
       welcomeMap: loadTex('/textures/welcome_map.jpg', 1, 1),
-      waterFoam: this.createWaterStreamTexture()
+      waterFoam: this.createWaterStreamTexture(),
+      softParticle: this.createSoftParticleTexture()
     };
   }
 
-  /** Genera textura continua de espuma y vetas de corriente para cascada y río. */
+  /** Textura vertical espumosa para muestreo dual en los shaders de agua. */
   createWaterStreamTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 256;
@@ -101,14 +113,13 @@ export class TrailScene {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 256, 512);
 
-    // Vetas verticales espumosas
-    for (let i = 0; i < 160; i++) {
+    for (let i = 0; i < 180; i++) {
       const x = Math.random() * 256;
       const y = Math.random() * 512;
-      const w = 3 + Math.random() * 10;
-      const h = 30 + Math.random() * 90;
+      const w = 2 + Math.random() * 9;
+      const h = 28 + Math.random() * 95;
       ctx.fillStyle =
-        i % 3 === 0 ? 'rgba(242, 253, 255, 0.55)' : 'rgba(180, 244, 250, 0.35)';
+        i % 3 === 0 ? 'rgba(244, 253, 255, 0.58)' : 'rgba(182, 245, 250, 0.36)';
       ctx.fillRect(x, y, w, h);
       if (y + h > 512) {
         ctx.fillRect(x, y - 512, w, h);
@@ -119,7 +130,25 @@ export class TrailScene {
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.colorSpace = THREE.SRGBColorSpace;
-    this.waterTextures.push(tex);
+    return tex;
+  }
+
+  /** Sprite circular radial difuso para eliminar partículas cuadradas. */
+  createSoftParticleTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 31);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.35, 'rgba(255, 255, 255, 0.65)');
+    grad.addColorStop(0.75, 'rgba(255, 255, 255, 0.16)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }
 
@@ -133,29 +162,31 @@ export class TrailScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.06;
     this.container.appendChild(this.renderer.domElement);
   }
 
   initScene() {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xc5ddd4);
-    this.scene.fog = new THREE.FogExp2(0xc5ddd4, 0.0115);
+    this.fogColor = new THREE.Color(0xc5ddd4);
+    this.fogDensity = 0.011;
+    this.scene.background = this.fogColor.clone();
+    this.scene.fog = new THREE.FogExp2(this.fogColor.getHex(), this.fogDensity);
 
     const aspect = this.container.clientWidth / Math.max(1, this.container.clientHeight);
-    this.camera = new THREE.PerspectiveCamera(56, aspect, 0.1, 260);
+    this.camera = new THREE.PerspectiveCamera(56, aspect, 0.1, 280);
 
-    const hemiLight = new THREE.HemisphereLight(0xf1f8f5, 0x384b34, 1.0);
+    const hemiLight = new THREE.HemisphereLight(0xf1f8f5, 0x384b34, 1.02);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfff0d4, 1.55);
+    const sunLight = new THREE.DirectionalLight(0xfff0d4, 1.58);
     sunLight.position.set(-45, 58, 36);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 5;
-    sunLight.shadow.camera.far = 210;
-    const d = 95;
+    sunLight.shadow.camera.far = 220;
+    const d = 100;
     sunLight.shadow.camera.left = -d;
     sunLight.shadow.camera.right = d;
     sunLight.shadow.camera.top = d;
@@ -163,37 +194,49 @@ export class TrailScene {
     sunLight.shadow.bias = -0.0005;
     this.scene.add(sunLight);
 
-    const fillLight = new THREE.DirectionalLight(0xa3d4c4, 0.42);
+    const fillLight = new THREE.DirectionalLight(0xa3d4c4, 0.44);
     fillLight.position.set(45, 22, -40);
     this.scene.add(fillLight);
 
-    const skyGeo = new THREE.SphereGeometry(210, 24, 16);
-    const skyMat = new THREE.ShaderMaterial({
-      side: THREE.BackSide,
-      depthWrite: false,
-      uniforms: {
-        topColor: { value: new THREE.Color(0x5f9996) },
-        bottomColor: { value: new THREE.Color(0xd7e8df) }
-      },
-      vertexShader: `
-        varying vec3 vWorldPosition;
-        void main() {
-          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPosition.xyz;
-          gl_Position = projectionMatrix * viewMatrix * worldPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 topColor;
-        uniform vec3 bottomColor;
-        varying vec3 vWorldPosition;
-        void main() {
-          float h = normalize(vWorldPosition).y;
-          gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), 0.72), 0.0)), 1.0);
-        }
-      `
-    });
+    this.buildSkyAndClouds();
+  }
+
+  buildSkyAndClouds() {
+    // Domo celeste con nubes FBM procedurales
+    const skyGeo = new THREE.SphereGeometry(220, 32, 20);
+    const skyMat = createSkyWithCloudsMaterial(this.uTime);
     this.scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+    // Bancos de nubes altas flotando sobre las cumbres
+    const cloudMat = createCloudLayerMaterial(this.uTime);
+    for (let i = 0; i < 10; i++) {
+      const ang = (i / 10) * Math.PI * 2;
+      const dist = 62 + (i % 3) * 24;
+      const cloud = new THREE.Mesh(new THREE.PlaneGeometry(42 + (i % 3) * 14, 24), cloudMat);
+      cloud.position.set(Math.cos(ang) * dist, 29 + (i % 3) * 5, Math.sin(ang) * dist);
+      cloud.rotation.x = Math.PI / 2;
+      cloud.rotation.z = ang * 0.5;
+      cloud.userData = { baseAngle: ang, dist, speed: 0.008 + (i % 3) * 0.004 };
+      this.scene.add(cloud);
+      this.cloudMeshes.push(cloud);
+    }
+
+    // Neblina baja de valle entre quebrada y laderas
+    const mistMat = createValleyMistMaterial(this.uTime);
+    const mistCoords = [
+      [20, 3.2, -16, 26],
+      [-28, 3.5, -18, 34],
+      [-45, 3.6, 22, 32],
+      [48, 3.4, -10, 34],
+      [15, 3.1, -34, 38],
+      [-10, 3.3, 45, 30]
+    ];
+    mistCoords.forEach(([x, y, z, s]) => {
+      const layer = new THREE.Mesh(new THREE.PlaneGeometry(s, s * 0.75), mistMat);
+      layer.position.set(x, y, z);
+      layer.rotation.x = -Math.PI / 2;
+      this.scene.add(layer);
+    });
   }
 
   buildCurve() {
@@ -212,45 +255,39 @@ export class TrailScene {
     ]);
 
     this.boardwalkSamples = [];
-    for (let i = 0; i <= 90; i++) {
-      this.boardwalkSamples.push(this.boardwalkCurve.getPointAt(i / 90));
+    for (let i = 0; i <= 95; i++) {
+      this.boardwalkSamples.push(this.boardwalkCurve.getPointAt(i / 95));
     }
   }
 
   getTerrainHeight(x, z) {
     let h = 1.3 + Math.sin(x * 0.055) * 0.7 + Math.cos(z * 0.05) * 0.65;
 
-    // Cordilleras norte detrás de la quebrada y la cascada
-    if (z < -23) {
-      const ridge = (-23 - z) * 0.27;
+    if (z < -24) {
+      const ridge = (-24 - z) * 0.28;
       h += Math.min(20, ridge * (0.85 + 0.35 * Math.sin(x * 0.11)));
     }
 
-    // Risco detrás de la cascada en (26.5, -24)
-    const distWf = Math.hypot(x - 26.5, z + 24);
+    const distWf = Math.hypot(x - 26.5, z + 24.5);
     if (distWf < 9.5) {
       h += (9.5 - distWf) * 1.05;
     }
 
-    // Cuenco abierto de la poza de cascada
-    const distPool = Math.hypot(x - 23.5, z + 15.5);
-    if (distPool < 6.5) {
-      h -= (1 - distPool / 6.5) * 1.15;
+    const distPool = Math.hypot(x - 23.6, z + 15.6);
+    if (distPool < 7.6) {
+      h = Math.min(h, 0.35 + (distPool / 7.6) * 1.15);
     }
 
-    // Colinas circundantes en los bordes exteriores
     const radial = Math.hypot(x, z);
     if (radial > 76) {
       h += (radial - 76) * 0.22;
     }
 
-    // Cauce de la quebrada pasando bajo el puente (16, -9)
     const distStream = this.distanceToStream(x, z);
-    if (distStream < 5.0) {
-      h -= (1 - distStream / 5.0) * 1.6;
+    if (distStream < 6.0) {
+      h = Math.min(h, 0.25 + (distStream / 6.0) * 1.35);
     }
 
-    // Despeje suave bajo toda la pasarela de madera para evitar intersecciones
     let minBwDist = Infinity;
     let nearestBwY = h;
     for (const pt of this.boardwalkSamples) {
@@ -271,7 +308,7 @@ export class TrailScene {
 
   distanceToStream(x, z) {
     const d1 = this.pointToSegmentDist(x, z, 23.5, -16, 16, -9);
-    const d2 = this.pointToSegmentDist(x, z, 16, -9, -14, -36);
+    const d2 = this.pointToSegmentDist(x, z, 16, -9, -18, -42);
     return Math.min(d1, d2);
   }
 
@@ -292,8 +329,8 @@ export class TrailScene {
 
     const pos = geo.attributes.position;
     const colors = [];
-    const cMeadow = new THREE.Color(0xd7e3ce);
-    const cRockTint = new THREE.Color(0xaab0aa);
+    const cMeadow = new THREE.Color(0xdbe6d2);
+    const cRockTint = new THREE.Color(0xafb5af);
     const cBankTint = new THREE.Color(0xbca88d);
     const tmp = new THREE.Color();
 
@@ -304,13 +341,9 @@ export class TrailScene {
       pos.setY(i, y);
 
       const streamDist = this.distanceToStream(x, z);
-      if (y > 6.5) {
-        tmp.copy(cRockTint);
-      } else if (streamDist < 4.2) {
-        tmp.copy(cBankTint);
-      } else {
-        tmp.copy(cMeadow);
-      }
+      if (y > 6.5) tmp.copy(cRockTint);
+      else if (streamDist < 4.4) tmp.copy(cBankTint);
+      else tmp.copy(cMeadow);
       colors.push(tmp.r, tmp.g, tmp.b);
     }
 
@@ -320,45 +353,83 @@ export class TrailScene {
     const mat = new THREE.MeshStandardMaterial({
       map: this.textures.ground,
       bumpMap: this.textures.ground,
-      bumpScale: 0.08,
+      bumpScale: 0.09,
       vertexColors: true,
       roughness: 0.92,
       metalness: 0.02
     });
+    enhanceTerrainMaterialWithShader(mat);
 
     const terrain = new THREE.Mesh(geo, mat);
     terrain.receiveShadow = true;
     this.scene.add(terrain);
   }
 
+  /** Construye cinta curva continua para el río con shader de flujo, cáusticas y Fresnel. */
   buildStreamBedWater() {
-    const streamMat = new THREE.MeshStandardMaterial({
-      map: this.textures.waterFoam,
-      color: 0x7bdce8,
-      roughness: 0.14,
-      metalness: 0.12,
-      transparent: true,
-      opacity: 0.86
-    });
-
-    const poolGeo = new THREE.CircleGeometry(5.6, 28);
+    const poolMat = createRiverShaderMaterial(
+      this.uTime,
+      this.textures.waterFoam,
+      this.fogColor,
+      this.fogDensity,
+      true
+    );
+    const poolGeo = new THREE.PlaneGeometry(13.2, 13.2, 24, 24);
     poolGeo.rotateX(-Math.PI / 2);
-    const pool = new THREE.Mesh(poolGeo, streamMat);
-    pool.position.set(23.5, 0.92, -15.5);
-    pool.receiveShadow = true;
+    const pool = new THREE.Mesh(poolGeo, poolMat);
+    pool.position.set(23.6, 1.18, -15.6);
     this.scene.add(pool);
 
-    const stream1 = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 14), streamMat);
-    stream1.rotation.x = -Math.PI / 2;
-    stream1.rotation.z = -0.82;
-    stream1.position.set(19.5, 0.88, -12.3);
-    this.scene.add(stream1);
+    const riverCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(23.2, 1.16, -15.4),
+      new THREE.Vector3(19.5, 1.14, -12.2),
+      new THREE.Vector3(16.0, 1.12, -9.0),
+      new THREE.Vector3(8.5, 1.09, -15.0),
+      new THREE.Vector3(-2.0, 1.06, -25.5),
+      new THREE.Vector3(-18.0, 1.03, -41.5)
+    ]);
+    const riverGeo = this.createRibbonGeometry(riverCurve, 5.2, 70);
+    const riverMat = createRiverShaderMaterial(
+      this.uTime,
+      this.textures.waterFoam,
+      this.fogColor,
+      this.fogDensity,
+      false
+    );
+    const riverMesh = new THREE.Mesh(riverGeo, riverMat);
+    this.scene.add(riverMesh);
+  }
 
-    const stream2 = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 38), streamMat);
-    stream2.rotation.x = -Math.PI / 2;
-    stream2.rotation.z = 0.83;
-    stream2.position.set(2.5, 0.82, -21);
-    this.scene.add(stream2);
+  createRibbonGeometry(curve, width, segments) {
+    const positions = [];
+    const uvs = [];
+    const indices = [];
+    const up = new THREE.Vector3(0, 1, 0);
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const pt = curve.getPointAt(t);
+      const tangent = curve.getTangentAt(t).normalize();
+      const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
+      const halfW = width * (0.5 + 0.08 * Math.sin(t * 14));
+
+      const left = pt.clone().addScaledVector(side, -halfW);
+      const right = pt.clone().addScaledVector(side, halfW);
+      positions.push(left.x, left.y, left.z, right.x, right.y, right.z);
+      uvs.push(0, t * 5, 1, t * 5);
+
+      if (i < segments) {
+        const base = i * 2;
+        indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
   }
 
   buildBoardwalk() {
@@ -468,6 +539,22 @@ export class TrailScene {
     return group;
   }
 
+  /** Perturba vértices de geometrías de roca para obtener crestas angulares realistas. */
+  perturbGeometry(geometry, amplitude = 0.22, seed = 13) {
+    const pos = geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const n =
+        Math.sin(x * 3.1 + seed) * Math.cos(y * 2.7 - seed) * Math.sin(z * 2.9 + seed * 0.5);
+      const factor = 1 + n * amplitude;
+      pos.setXYZ(i, x * factor, y * factor, z * factor);
+    }
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
   buildStationsLandmarks() {
     this.buildMiradorDeck();
     this.buildArbolAbuelo();
@@ -486,7 +573,6 @@ export class TrailScene {
       roughness: 0.85
     });
 
-    // Banca accesible dejando bahía libre contigua
     const benchSeat = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.1, 0.56), woodMat);
     benchSeat.position.set(-1.6, 0.52, -1.7);
     benchSeat.castShadow = true;
@@ -494,7 +580,6 @@ export class TrailScene {
     benchBack.position.set(-1.6, 0.78, -1.96);
     group.add(benchSeat, benchBack);
 
-    // Panel de mapa botánico ilustrado a altura cómoda de lectura
     const mapFrame = new THREE.Mesh(new THREE.BoxGeometry(2.25, 1.55, 0.12), woodMat);
     mapFrame.position.set(1.75, 1.45, -1.65);
     mapFrame.rotation.y = -0.45;
@@ -502,10 +587,7 @@ export class TrailScene {
 
     const mapFace = new THREE.Mesh(
       new THREE.PlaneGeometry(2.05, 1.38),
-      new THREE.MeshStandardMaterial({
-        map: this.textures.welcomeMap,
-        roughness: 0.65
-      })
+      new THREE.MeshStandardMaterial({ map: this.textures.welcomeMap, roughness: 0.65 })
     );
     mapFace.position.set(0, 0, 0.068);
     mapFrame.add(mapFace);
@@ -518,86 +600,142 @@ export class TrailScene {
     group.add(mapFrame);
   }
 
+  /**
+   * Estación 2: Árbol Abuelo situado limpiamente fuera de la pasarela (8,5 m al noroeste)
+   * con raíces tablares curvas, ramas crecientes hacia arriba en TubeGeometry y bromelias orgánicas.
+   */
   buildArbolAbuelo() {
-    const pt = this.boardwalkCurve.getPointAt(this.stationTs[1]);
-    this.createDeckPlatform(pt.x, pt.y - 0.02, pt.z, 5.2, 5.2, 0.75);
+    const t2 = this.stationTs[1];
+    const pt = this.boardwalkCurve.getPointAt(t2);
+    const tangent = this.boardwalkCurve.getTangentAt(t2).normalize();
+    const leftSide = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), tangent).normalize();
 
-    // Árbol centenario imponente junto a la pasarela en (-18.5, 19.5)
-    const treeX = -18.5;
-    const treeZ = 19.5;
-    const groundY = this.getTerrainHeight(treeX, treeZ);
+    this.createDeckPlatform(pt.x, pt.y - 0.02, pt.z, 5.4, 5.4, 0.75);
+
+    const treePos = pt.clone().addScaledVector(leftSide, 8.6);
+    const groundY = this.getTerrainHeight(treePos.x, treePos.z);
+    this.grandfatherTreePos = new THREE.Vector3(treePos.x, groundY, treePos.z);
+    this.grandfatherTreeLookTarget = new THREE.Vector3(treePos.x, groundY + 4.1, treePos.z);
+
     const treeGroup = new THREE.Group();
-    treeGroup.position.set(treeX, groundY - 0.2, treeZ);
+    treeGroup.position.set(treePos.x, groundY - 0.15, treePos.z);
 
     const barkMat = new THREE.MeshStandardMaterial({
       map: this.textures.bark,
       bumpMap: this.textures.bark,
-      bumpScale: 0.1,
+      bumpScale: 0.11,
       roughness: 0.92
     });
     const leafMat = new THREE.MeshStandardMaterial({
       map: this.textures.foliage,
       bumpMap: this.textures.foliage,
-      bumpScale: 0.06,
+      bumpScale: 0.05,
       roughness: 0.82
     });
+    enhanceFoliageWithWindShader(leafMat, this.uTime);
 
-    // Tronco grueso y raíces tablares
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.45, 7.2, 12), barkMat);
-    trunk.position.y = 3.6;
+    // Tronco ligeramente cónico y orgánico
+    const trunkCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0.25, 2.8, -0.15),
+      new THREE.Vector3(0.15, 5.6, 0.1),
+      new THREE.Vector3(0, 8.0, 0.05)
+    ]);
+    const trunk = new THREE.Mesh(new THREE.TubeGeometry(trunkCurve, 18, 1.05, 12, false), barkMat);
     trunk.castShadow = true;
     trunk.receiveShadow = true;
     treeGroup.add(trunk);
 
+    // Base ensanchada y 6 raíces tablares abrazando el suelo musgoso
+    const baseCollar = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.55, 2.2, 12), barkMat);
+    baseCollar.position.y = 1.0;
+    baseCollar.castShadow = true;
+    treeGroup.add(baseCollar);
+
     for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2;
-      const root = new THREE.Mesh(new THREE.BoxGeometry(0.45, 2.1, 2.2), barkMat);
-      root.position.set(Math.cos(angle) * 1.4, 0.9, Math.sin(angle) * 1.4);
-      root.rotation.y = -angle;
-      root.rotation.x = 0.45;
-      root.castShadow = true;
-      treeGroup.add(root);
+      const ang = (i / 6) * Math.PI * 2 + 0.25;
+      const rootCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(Math.cos(ang) * 0.7, 2.1, Math.sin(ang) * 0.7),
+        new THREE.Vector3(Math.cos(ang) * 1.65, 0.9, Math.sin(ang) * 1.65),
+        new THREE.Vector3(Math.cos(ang) * 2.9, 0.05, Math.sin(ang) * 2.9)
+      ]);
+      const rootMesh = new THREE.Mesh(new THREE.TubeGeometry(rootCurve, 10, 0.28, 7, false), barkMat);
+      rootMesh.castShadow = true;
+      treeGroup.add(rootMesh);
     }
 
-    // Ramas principales y copa frondosa orgánica
-    const branchSpecs = [
-      { rx: 0.55, rz: 0.2, y: 5.8, len: 4.5, ry: 0.4 },
-      { rx: -0.5, rz: 0.35, y: 6.2, len: 4.2, ry: 2.2 },
-      { rx: 0.25, rz: -0.55, y: 6.0, len: 4.4, ry: 4.1 },
-      { rx: -0.35, rz: -0.45, y: 6.5, len: 3.9, ry: 5.2 }
-    ];
+    // Ramas principales curvas saliendo DESDE dentro del tronco hacia arriba y afuera
+    const branchAngles = [0.35, 1.85, 3.35, 4.95];
+    const vineMat = new THREE.MeshStandardMaterial({ color: 0x3b6938, roughness: 0.88 });
 
-    branchSpecs.forEach((b) => {
-      const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.42, b.len, 8), barkMat);
-      branch.position.set(Math.cos(b.ry) * 1.4, b.y, Math.sin(b.ry) * 1.4);
-      branch.rotation.set(b.rx, b.ry, b.rz);
+    branchAngles.forEach((ang, idx) => {
+      const attachY = 5.0 + (idx % 2) * 0.9;
+      const reach = 3.8 + (idx % 2) * 0.8;
+      const tipY = attachY + 2.8 + (idx % 2) * 0.6;
+      const dx = Math.cos(ang);
+      const dz = Math.sin(ang);
+
+      const branchCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(dx * 0.35, attachY, dz * 0.35),
+        new THREE.Vector3(dx * (reach * 0.52), attachY + 1.45, dz * (reach * 0.52)),
+        new THREE.Vector3(dx * reach, tipY, dz * reach)
+      ]);
+      const branch = new THREE.Mesh(new THREE.TubeGeometry(branchCurve, 12, 0.32, 8, false), barkMat);
       branch.castShadow = true;
       treeGroup.add(branch);
 
+      // Racimos frondosos en la punta de cada rama
       const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry(2.35, 1), leafMat);
-      canopy.scale.set(1.25, 0.85, 1.25);
-      canopy.position.set(Math.cos(b.ry) * 2.9, b.y + 1.5, Math.sin(b.ry) * 2.9);
+      canopy.scale.set(1.25, 0.88, 1.25);
+      canopy.position.set(dx * reach, tipY + 0.6, dz * reach);
       canopy.castShadow = true;
       treeGroup.add(canopy);
+
+      // Lianas musgosas colgantes ancladas directamente sobre la rama
+      const vineStart = branchCurve.getPointAt(0.58);
+      const vineCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(vineStart.x, vineStart.y, vineStart.z),
+        new THREE.Vector3(vineStart.x + 0.1, vineStart.y - 1.1, vineStart.z - 0.08),
+        new THREE.Vector3(vineStart.x - 0.04, vineStart.y - 2.3, vineStart.z + 0.06)
+      ]);
+      treeGroup.add(new THREE.Mesh(new THREE.TubeGeometry(vineCurve, 8, 0.035, 5, false), vineMat));
+
+      // Roseta orgánica de bromelia epífita posada sobre la rama
+      const rosetteAnchor = branchCurve.getPointAt(0.32);
+      const rosette = this.createBromeliadRosette(idx % 2 === 0 ? 0xe05a47 : 0xe89a38);
+      rosette.position.set(rosetteAnchor.x, rosetteAnchor.y + 0.24, rosetteAnchor.z);
+      rosette.rotation.z = -dx * 0.25;
+      treeGroup.add(rosette);
     });
 
-    const crownTop = new THREE.Mesh(new THREE.IcosahedronGeometry(2.9, 1), leafMat);
-    crownTop.scale.set(1.3, 0.9, 1.3);
-    crownTop.position.set(0, 8.6, 0);
+    // Copa central alta
+    const crownTop = new THREE.Mesh(new THREE.IcosahedronGeometry(3.0, 1), leafMat);
+    crownTop.scale.set(1.3, 0.92, 1.3);
+    crownTop.position.set(0, 9.1, 0);
     crownTop.castShadow = true;
     treeGroup.add(crownTop);
 
-    // Bromelias epífitas de acento sobre el tronco
-    const flowerMat = new THREE.MeshStandardMaterial({ color: 0xe26345, roughness: 0.65 });
-    for (let i = 0; i < 4; i++) {
-      const ang = i * 1.5;
-      const bromelia = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.4, 6), flowerMat);
-      bromelia.position.set(Math.cos(ang) * 1.15, 2.9 + i * 0.65, Math.sin(ang) * 1.15);
-      bromelia.rotation.z = -Math.cos(ang) * 0.4;
-      treeGroup.add(bromelia);
-    }
-
     this.scene.add(treeGroup);
+  }
+
+  createBromeliadRosette(flowerHex) {
+    const group = new THREE.Group();
+    const petalLeafMat = new THREE.MeshStandardMaterial({ color: 0x5d9c49, roughness: 0.7 });
+    const centerMat = new THREE.MeshStandardMaterial({ color: flowerHex, roughness: 0.55 });
+
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.025, 0.36), petalLeafMat);
+      blade.position.set(Math.cos(a) * 0.14, 0.05, Math.sin(a) * 0.14);
+      blade.rotation.y = -a + Math.PI / 2;
+      blade.rotation.x = -0.4;
+      group.add(blade);
+    }
+    const spike = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), centerMat);
+    spike.scale.y = 1.6;
+    spike.position.y = 0.14;
+    group.add(spike);
+    return group;
   }
 
   buildHuertaElevada() {
@@ -613,10 +751,8 @@ export class TrailScene {
       color: 0x5c4636,
       roughness: 0.95
     });
-    const leafMat = new THREE.MeshStandardMaterial({
-      map: this.textures.foliage,
-      roughness: 0.8
-    });
+    const leafMat = new THREE.MeshStandardMaterial({ map: this.textures.foliage, roughness: 0.8 });
+    enhanceFoliageWithWindShader(leafMat, this.uTime);
 
     const planterConfigs = [
       { x: 1.75, z: -1.35, tint: 0x9cd184, flowerColor: 0xf4c44e },
@@ -649,6 +785,7 @@ export class TrailScene {
 
       const herbMat = leafMat.clone();
       herbMat.color.setHex(cfg.tint);
+      enhanceFoliageWithWindShader(herbMat, this.uTime);
 
       for (let i = 0; i < 6; i++) {
         const px = -0.6 + (i % 3) * 0.6;
@@ -667,9 +804,33 @@ export class TrailScene {
           bed.add(bloom);
         }
       }
-
       group.add(bed);
     });
+  }
+
+  /**
+   * Geometría curvada para la cascada: nace horizontal sobre la cornisa rocosa,
+   * cae curvándose de forma natural y se ensancha hacia la poza de espuma.
+   */
+  createCurvedWaterfallGeometry(width = 3.8, height = 9.4) {
+    const segX = 18;
+    const segY = 28;
+    const geo = new THREE.PlaneGeometry(width, height, segX, segY);
+    const pos = geo.attributes.position;
+
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const v = (y + height / 2) / height; // 0 = base en poza, 1 = cresta superior
+
+      // Ensanchamiento suave en la base y curvatura hacia atrás sobre el risco en la cresta
+      const flare = 1.0 + (1.0 - v) * 0.32;
+      const lipBack = v > 0.72 ? -Math.pow((v - 0.72) / 0.28, 2) * 2.1 : 0;
+      const arcForward = Math.sin(v * Math.PI) * 0.55;
+      pos.setXYZ(i, x * flare, y, lipBack + arcForward);
+    }
+    geo.computeVertexNormals();
+    return geo;
   }
 
   buildWaterfall() {
@@ -679,21 +840,23 @@ export class TrailScene {
     const rockMat = new THREE.MeshStandardMaterial({
       map: this.textures.rock,
       bumpMap: this.textures.rock,
-      bumpScale: 0.14,
-      roughness: 0.9,
-      flatShading: false
+      bumpScale: 0.16,
+      roughness: 0.92
     });
 
+    // Risco escalonado anguloso (con vértices perturbados para quitar forma ovoide)
     const rockLayout = [
-      { x: 19.8, y: 4.5, z: -20.2, sx: 2.9, sy: 6.4, sz: 2.8 },
-      { x: 29.8, y: 5.0, z: -18.2, sx: 3.1, sy: 7.2, sz: 2.9 },
-      { x: 25.2, y: 6.2, z: -22.5, sx: 5.8, sy: 8.4, sz: 2.8 },
-      { x: 20.5, y: 1.5, z: -15.6, sx: 1.6, sy: 1.2, sz: 1.4 },
-      { x: 27.6, y: 1.6, z: -14.2, sx: 1.7, sy: 1.3, sz: 1.5 }
+      { x: 19.8, y: 4.5, z: -20.2, sx: 3.1, sy: 6.4, sz: 2.9 },
+      { x: 29.8, y: 5.1, z: -18.2, sx: 3.3, sy: 7.2, sz: 3.0 },
+      { x: 25.3, y: 6.3, z: -22.8, sx: 6.0, sy: 8.6, sz: 2.8 },
+      { x: 25.0, y: 8.8, z: -20.2, sx: 3.6, sy: 1.8, sz: 2.6 },
+      { x: 20.4, y: 1.6, z: -15.4, sx: 1.8, sy: 1.2, sz: 1.5 },
+      { x: 27.6, y: 1.7, z: -14.0, sx: 1.9, sy: 1.3, sz: 1.6 }
     ];
 
-    rockLayout.forEach((r) => {
-      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 2), rockMat);
+    rockLayout.forEach((r, idx) => {
+      const geo = this.perturbGeometry(new THREE.DodecahedronGeometry(1, 2), 0.24, idx + 7);
+      const rock = new THREE.Mesh(geo, rockMat);
       rock.position.set(r.x, r.y, r.z);
       rock.scale.set(r.sx, r.sy, r.sz);
       rock.castShadow = true;
@@ -701,45 +864,41 @@ export class TrailScene {
       this.scene.add(rock);
     });
 
-    // Cortina de agua texturizada con desplazamiento animado continuo
-    for (let i = 0; i < 3; i++) {
-      const waterMat = new THREE.MeshStandardMaterial({
-        map: this.textures.waterFoam,
-        color: i === 1 ? 0xebfcff : 0x62d5e6,
-        transparent: true,
-        opacity: i === 1 ? 0.85 : 0.78,
-        roughness: 0.15,
-        emissive: 0x1e6573,
-        emissiveIntensity: 0.35
-      });
-      const sheet = new THREE.Mesh(new THREE.BoxGeometry(3.2 - i * 0.55, 9.6, 0.34), waterMat);
-      sheet.position.set(24.5 + (i - 1) * 0.3, 5.5, -18.0 + i * 0.25);
-      sheet.rotation.y = -0.62;
-      this.scene.add(sheet);
-    }
-
-    const foamRing = new THREE.Mesh(
-      new THREE.TorusGeometry(2.1, 0.28, 8, 28),
-      new THREE.MeshBasicMaterial({ color: 0xecfbff, transparent: true, opacity: 0.74 })
+    // Cortina principal de cascada con Shader GLSL personalizado
+    const wfShaderMat = createWaterfallShaderMaterial(
+      this.uTime,
+      this.textures.waterFoam,
+      this.fogColor,
+      this.fogDensity
     );
-    foamRing.rotation.x = Math.PI / 2;
-    foamRing.position.set(23.7, 1.04, -16.2);
-    this.scene.add(foamRing);
+    const mainWf = new THREE.Mesh(this.createCurvedWaterfallGeometry(3.8, 9.2), wfShaderMat);
+    mainWf.position.set(24.6, 5.15, -17.6);
+    mainWf.rotation.y = -0.62;
+    this.scene.add(mainWf);
 
-    const mistCount = 120;
+    // Segundo velo más ancho de rocío luminoso delante del chorro principal
+    const veilWf = new THREE.Mesh(this.createCurvedWaterfallGeometry(4.5, 8.8), wfShaderMat);
+    veilWf.position.set(24.4, 5.0, -17.35);
+    veilWf.rotation.y = -0.62;
+    this.scene.add(veilWf);
+
+    // Partículas circulares difusas (sin cuadrados!) de bruma ascendente en la poza
+    const mistCount = 130;
     const mistPos = new Float32Array(mistCount * 3);
     for (let i = 0; i < mistCount; i++) {
-      mistPos[i * 3] = 23.8 + (Math.random() - 0.5) * 5.2;
-      mistPos[i * 3 + 1] = 1.1 + Math.random() * 3.4;
-      mistPos[i * 3 + 2] = -15.8 + (Math.random() - 0.5) * 4.8;
+      mistPos[i * 3] = 23.6 + (Math.random() - 0.5) * 5.6;
+      mistPos[i * 3 + 1] = 1.05 + Math.random() * 3.4;
+      mistPos[i * 3 + 2] = -15.8 + (Math.random() - 0.5) * 5.2;
     }
     const mistGeo = new THREE.BufferGeometry();
     mistGeo.setAttribute('position', new THREE.BufferAttribute(mistPos, 3));
     const mistMat = new THREE.PointsMaterial({
+      map: this.textures.softParticle,
       color: 0xeefbff,
-      size: 0.6,
+      size: 1.35,
       transparent: true,
-      opacity: 0.45
+      opacity: 0.36,
+      depthWrite: false
     });
     this.mistParticles = new THREE.Points(mistGeo, mistMat);
     this.scene.add(this.mistParticles);
@@ -754,7 +913,6 @@ export class TrailScene {
       roughness: 0.85
     });
 
-    // Pérgola de descanso accesible
     for (const px of [-2.2, 2.2]) {
       for (const pz of [-2.1, 2.1]) {
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 3.1, 8), woodMat);
@@ -771,28 +929,31 @@ export class TrailScene {
       group.add(slat);
     }
 
-    // Banca ergonómica dejando bahía libre junto a ella
     const bench = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.1, 0.58), woodMat);
     bench.position.set(-1.3, 0.52, -1.35);
     bench.castShadow = true;
     group.add(bench);
 
-    // Árbol florido frente al mirador para atraer aves en (47.5, 5.5)
     const treeX = 47.5;
     const treeZ = 5.5;
     const gy = this.getTerrainHeight(treeX, treeZ);
     const blossomTree = new THREE.Group();
     blossomTree.position.set(treeX, gy - 0.1, treeZ);
 
+    const trunkCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0.3, 2.2, -0.2),
+      new THREE.Vector3(0.1, 4.4, 0.15)
+    ]);
     const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.32, 0.48, 4.4, 8),
+      new THREE.TubeGeometry(trunkCurve, 10, 0.36, 8, false),
       new THREE.MeshStandardMaterial({ map: this.textures.bark, roughness: 0.9 })
     );
-    trunk.position.y = 2.2;
     trunk.castShadow = true;
     blossomTree.add(trunk);
 
     const leafMat = new THREE.MeshStandardMaterial({ map: this.textures.foliage, roughness: 0.8 });
+    enhanceFoliageWithWindShader(leafMat, this.uTime);
     const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(2.1, 1), leafMat);
     crown.position.y = 4.9;
     crown.castShadow = true;
@@ -844,7 +1005,6 @@ export class TrailScene {
     roof.castShadow = true;
     group.add(roof);
 
-    // Mesa expositora de artesanías con camino textil real
     const tableTop = new THREE.Mesh(
       new THREE.BoxGeometry(2.7, 0.12, 1.15),
       new THREE.MeshStandardMaterial({ map: this.textures.wood, roughness: 0.75 })
@@ -866,7 +1026,6 @@ export class TrailScene {
       group.add(leg);
     }
 
-    // Tres tapices tejidos colgantes con textura andina generada
     const textileMat = new THREE.MeshStandardMaterial({
       map: this.textures.textile,
       bumpMap: this.textures.textile,
@@ -880,7 +1039,6 @@ export class TrailScene {
       group.add(cloth);
     }
 
-    // Ánforas de cerámica sobre el camino textil
     const clayMat = new THREE.MeshStandardMaterial({ color: 0xc26942, roughness: 0.72 });
     const clayTrimMat = new THREE.MeshStandardMaterial({ color: 0xf0c987, roughness: 0.65 });
     for (let i = 0; i < 3; i++) {
@@ -915,108 +1073,218 @@ export class TrailScene {
     group.add(lanternLight);
   }
 
+  /**
+   * Construye el bosque con 4 arquetipos distintos de árboles y troncos variados
+   * (curvos, bifurcados, helechos arbóreos de montaña y troncos caídos musgosos).
+   */
   buildForestAndFlora() {
-    const trunkMat = new THREE.MeshStandardMaterial({
-      map: this.textures.bark,
-      bumpMap: this.textures.bark,
-      bumpScale: 0.06,
-      roughness: 0.92
+    const barkTints = [0xffffff, 0xcbb7a4, 0x9aa38e, 0xd8c3b0];
+    const barkMats = barkTints.map(
+      (hex) =>
+        new THREE.MeshStandardMaterial({
+          map: this.textures.bark,
+          bumpMap: this.textures.bark,
+          bumpScale: 0.08,
+          color: hex,
+          roughness: 0.92
+        })
+    );
+
+    const foliageTints = [0xdcf0d3, 0xb7deb0, 0xcbe6bd, 0x9ecc99];
+    const foliageMats = foliageTints.map((hex) => {
+      const m = new THREE.MeshStandardMaterial({
+        map: this.textures.foliage,
+        color: hex,
+        roughness: 0.84
+      });
+      enhanceFoliageWithWindShader(m, this.uTime);
+      return m;
     });
-    const foliageMats = [
-      new THREE.MeshStandardMaterial({
-        map: this.textures.foliage,
-        color: 0xdcf0d3,
-        roughness: 0.85
-      }),
-      new THREE.MeshStandardMaterial({
-        map: this.textures.foliage,
-        color: 0xb7deb0,
-        roughness: 0.85
-      }),
-      new THREE.MeshStandardMaterial({
-        map: this.textures.foliage,
-        color: 0xcbe6bd,
-        roughness: 0.85
-      })
-    ];
-    const boulderMat = new THREE.MeshStandardMaterial({
+
+    const rockMat = new THREE.MeshStandardMaterial({
       map: this.textures.rock,
       bumpMap: this.textures.rock,
-      bumpScale: 0.08,
+      bumpScale: 0.12,
       roughness: 0.9
     });
 
-    let seed = 77;
+    let seed = 91;
     const rand = () => {
       seed = (seed * 1664525 + 1013904223) % 4294967296;
       return seed / 4294967296;
     };
 
-    // Árboles frondosos orgánicos con múltiples racimos de follaje
-    for (let i = 0; i < 240; i++) {
+    for (let i = 0; i < 230; i++) {
       const x = (rand() - 0.5) * 195;
       const z = (rand() - 0.5) * 195;
       if (this.isNearTrailOrWater(x, z)) continue;
 
       const y = this.getTerrainHeight(x, z);
-      const scale = 0.85 + rand() * 1.15;
-
-      const tree = new THREE.Group();
-      tree.position.set(x, y - 0.15, z);
-
-      const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18 * scale, 0.34 * scale, 3.4 * scale, 8),
-        trunkMat
-      );
-      trunk.position.y = 1.7 * scale;
-      trunk.castShadow = true;
-      tree.add(trunk);
-
+      const scale = 0.8 + rand() * 1.15;
+      const barkMat = barkMats[i % barkMats.length];
       const leafMat = foliageMats[i % foliageMats.length];
-      const clusterOffsets = [
-        [0, 4.1, 0, 1.85],
-        [-0.85, 3.5, 0.65, 1.35],
-        [0.9, 3.6, -0.55, 1.4],
-        [0.15, 5.1, 0.2, 1.4]
-      ];
-      clusterOffsets.forEach(([cx, cy, cz, r]) => {
-        const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(r * scale, 1), leafMat);
-        crown.scale.set(1.15, 0.85, 1.15);
-        crown.position.set(cx * scale, cy * scale, cz * scale);
-        crown.castShadow = true;
-        tree.add(crown);
-      });
+      const rotY = rand() * Math.PI * 2;
 
+      const archetype = i % 10;
+      let tree;
+      if (archetype < 4) {
+        tree = this.createForkedTree(scale, barkMat, leafMat, rand);
+      } else if (archetype < 8) {
+        tree = this.createCurvedCanopyTree(scale, barkMat, leafMat, rand);
+      } else {
+        tree = this.createMountainTreeFern(scale, barkMat, leafMat);
+      }
+
+      tree.position.set(x, y - 0.15, z);
+      tree.rotation.y = rotY;
       this.scene.add(tree);
     }
 
-    // Rocas musgosas y helechos cerca del sendero
-    for (let i = 0; i < 95; i++) {
+    // Troncos caídos musgosos, rocas angulosas y helechos cerca del borde
+    for (let i = 0; i < 105; i++) {
       const x = (rand() - 0.5) * 155;
       const z = (rand() - 0.5) * 155;
       if (this.isOnBoardwalkCore(x, z)) continue;
       const y = this.getTerrainHeight(x, z);
 
-      if (i % 3 === 0) {
-        const boulder = new THREE.Mesh(
-          new THREE.DodecahedronGeometry(0.55 + rand() * 0.6, 1),
-          boulderMat
+      if (i % 5 === 0 && !this.isNearTrailOrWater(x, z)) {
+        const logCurve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(-1.4, 0.18, 0),
+          new THREE.Vector3(0, 0.28, 0.15),
+          new THREE.Vector3(1.5, 0.15, -0.1)
+        ]);
+        const log = new THREE.Mesh(
+          new THREE.TubeGeometry(logCurve, 8, 0.24 + rand() * 0.12, 7, false),
+          barkMats[2]
         );
-        boulder.scale.set(1.2, 0.72, 1.0);
-        boulder.position.set(x, y + 0.15, z);
+        log.position.set(x, y, z);
+        log.rotation.y = rand() * Math.PI;
+        log.castShadow = true;
+        this.scene.add(log);
+      } else if (i % 3 === 0) {
+        const geo = this.perturbGeometry(
+          new THREE.DodecahedronGeometry(0.55 + rand() * 0.55, 1),
+          0.25,
+          i
+        );
+        const boulder = new THREE.Mesh(geo, rockMat);
+        boulder.scale.set(1.2, 0.68, 1.0);
+        boulder.position.set(x, y + 0.12, z);
         boulder.castShadow = true;
         boulder.receiveShadow = true;
         this.scene.add(boulder);
       } else {
         const fern = new THREE.Mesh(
-          new THREE.IcosahedronGeometry(0.45 + rand() * 0.38, 0),
+          new THREE.IcosahedronGeometry(0.45 + rand() * 0.35, 0),
           foliageMats[1]
         );
-        fern.scale.set(1.3, 0.55, 1.3);
-        fern.position.set(x, y + 0.15, z);
+        fern.scale.set(1.3, 0.5, 1.3);
+        fern.position.set(x, y + 0.14, z);
         this.scene.add(fern);
       }
     }
+  }
+
+  createCurvedCanopyTree(scale, barkMat, leafMat, rand) {
+    const group = new THREE.Group();
+    const leanX = (rand() - 0.5) * 0.8 * scale;
+    const leanZ = (rand() - 0.5) * 0.8 * scale;
+    const h = (4.6 + rand() * 1.4) * scale;
+
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(leanX * 0.5, h * 0.5, leanZ * 0.5),
+      new THREE.Vector3(leanX, h, leanZ)
+    ]);
+    const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 10, 0.25 * scale, 7, false), barkMat);
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    const clusters = [
+      [leanX, h + 0.5 * scale, leanZ, 1.7],
+      [leanX - 0.9 * scale, h - 0.3 * scale, leanZ + 0.7 * scale, 1.3],
+      [leanX + 0.9 * scale, h - 0.1 * scale, leanZ - 0.6 * scale, 1.35]
+    ];
+    clusters.forEach(([cx, cy, cz, r]) => {
+      const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(r * scale, 1), leafMat);
+      crown.scale.set(1.2, 0.8, 1.2);
+      crown.position.set(cx, cy, cz);
+      crown.castShadow = true;
+      group.add(crown);
+    });
+    return group;
+  }
+
+  createForkedTree(scale, barkMat, leafMat, rand) {
+    const group = new THREE.Group();
+    const forkH = 2.6 * scale;
+    const baseCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0.1 * scale, forkH * 0.5, 0),
+      new THREE.Vector3(0, forkH, 0)
+    ]);
+    const baseTrunk = new THREE.Mesh(
+      new THREE.TubeGeometry(baseCurve, 7, 0.28 * scale, 7, false),
+      barkMat
+    );
+    baseTrunk.castShadow = true;
+    group.add(baseTrunk);
+
+    const boughCount = 2 + Math.floor(rand() * 2);
+    for (let b = 0; b < boughCount; b++) {
+      const ang = (b / boughCount) * Math.PI * 2 + rand() * 0.4;
+      const spread = (1.6 + rand() * 0.7) * scale;
+      const topH = forkH + (2.3 + rand() * 0.9) * scale;
+      const dx = Math.cos(ang) * spread;
+      const dz = Math.sin(ang) * spread;
+
+      const bCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, forkH - 0.2 * scale, 0),
+        new THREE.Vector3(dx * 0.55, forkH + 1.1 * scale, dz * 0.55),
+        new THREE.Vector3(dx, topH, dz)
+      ]);
+      const bough = new THREE.Mesh(new THREE.TubeGeometry(bCurve, 7, 0.15 * scale, 6, false), barkMat);
+      bough.castShadow = true;
+      group.add(bough);
+
+      const cluster = new THREE.Mesh(new THREE.IcosahedronGeometry(1.45 * scale, 1), leafMat);
+      cluster.scale.set(1.25, 0.78, 1.25);
+      cluster.position.set(dx, topH + 0.35 * scale, dz);
+      cluster.castShadow = true;
+      group.add(cluster);
+    }
+    return group;
+  }
+
+  createMountainTreeFern(scale, barkMat, leafMat) {
+    const group = new THREE.Group();
+    const topY = 4.2 * scale;
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0.25 * scale, topY * 0.55, 0.1 * scale),
+      new THREE.Vector3(0.15 * scale, topY, 0)
+    ]);
+    const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 9, 0.13 * scale, 7, false), barkMat);
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    for (let f = 0; f < 8; f++) {
+      const ang = (f / 8) * Math.PI * 2;
+      const frond = new THREE.Mesh(
+        new THREE.BoxGeometry(0.45 * scale, 0.04 * scale, 1.95 * scale),
+        leafMat
+      );
+      frond.position.set(
+        0.15 * scale + Math.cos(ang) * 0.95 * scale,
+        topY + 0.15 * scale,
+        Math.sin(ang) * 0.95 * scale
+      );
+      frond.rotation.y = -ang + Math.PI / 2;
+      frond.rotation.x = 0.25;
+      frond.castShadow = true;
+      group.add(frond);
+    }
+    return group;
   }
 
   buildFlyingBirds() {
@@ -1063,9 +1331,11 @@ export class TrailScene {
   }
 
   isNearTrailOrWater(x, z) {
-    if (this.distanceToStream(x, z) < 5.5) return true;
-    if (Math.hypot(x - 24, z + 17) < 11) return true;
-    if (Math.hypot(x + 18.5, z - 19.5) < 7.5) return true;
+    if (this.distanceToStream(x, z) < 5.6) return true;
+    if (Math.hypot(x - 24, z + 17) < 11.5) return true;
+    if (this.grandfatherTreePos && Math.hypot(x - this.grandfatherTreePos.x, z - this.grandfatherTreePos.z) < 7.5) {
+      return true;
+    }
     if (Math.hypot(x - 47.5, z - 5.5) < 6.0) return true;
 
     for (const pt of this.boardwalkSamples) {
@@ -1074,7 +1344,7 @@ export class TrailScene {
 
     for (let i = 0; i < this.stationTs.length; i++) {
       const sPt = this.boardwalkCurve.getPointAt(this.stationTs[i]);
-      if (Math.hypot(x - sPt.x, z - sPt.z) < 6.5) return true;
+      if (Math.hypot(x - sPt.x, z - sPt.z) < 6.8) return true;
     }
     return false;
   }
@@ -1090,10 +1360,12 @@ export class TrailScene {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const mat = new THREE.PointsMaterial({
+      map: this.textures.softParticle,
       color: 0xfff3b0,
-      size: 0.18,
+      size: 0.42,
       transparent: true,
-      opacity: 0.68
+      opacity: 0.72,
+      depthWrite: false
     });
     this.pollenParticles = new THREE.Points(geo, mat);
     this.scene.add(this.pollenParticles);
@@ -1137,7 +1409,10 @@ export class TrailScene {
   getLookAnglesForStation(index) {
     const t = this.stationTs[index];
     const camPos = this.boardwalkCurve.getPointAt(t);
-    const target = this.stations[index].lookAt;
+    const target =
+      index === 1 && this.grandfatherTreeLookTarget
+        ? this.grandfatherTreeLookTarget
+        : this.stations[index].lookAt;
     const dx = target.x - camPos.x;
     const dy = target.y - (camPos.y + this.targetEyeHeight);
     const dz = target.z - camPos.z;
@@ -1179,7 +1454,6 @@ export class TrailScene {
     }
   }
 
-  /** Desplaza suavemente al usuario tramo a tramo a lo largo de los 250 m de pasarela. */
   stepAlongTrail(deltaT) {
     this.travelMode = 'free';
     this.targetT = Math.max(0.01, Math.min(0.98, this.targetT + deltaT));
@@ -1347,17 +1621,18 @@ export class TrailScene {
     const elapsed = this.clock.elapsedTime;
 
     if (!this.reducedMotion) {
+      this.uTime.value = elapsed;
+
       const diffT = this.targetT - this.currentT;
       if (Math.abs(diffT) > 0.0005) {
         const speed = Math.min(Math.abs(diffT) * 3.0, 0.095);
-        this.currentT += Math.sign(diffT) * speed * dt * (diffT > 0 ? 1.0 : 1.0);
+        this.currentT += Math.sign(diffT) * speed * dt;
         if (Math.abs(this.targetT - this.currentT) < 0.0008) {
           this.currentT = this.targetT;
         }
         this.emitProgress();
       }
 
-      // Al desplazarse por tramos largos, orientar suavemente hacia la dirección del sendero
       if (this.travelMode === 'station' && Math.abs(this.targetT - this.currentT) > 0.035) {
         const tangent = this.boardwalkCurve
           .getTangentAt(Math.max(0, Math.min(1, this.currentT)))
@@ -1374,19 +1649,20 @@ export class TrailScene {
       const eyeAlpha = 1 - Math.exp(-6.0 * dt);
       this.eyeHeight += (this.targetEyeHeight - this.eyeHeight) * eyeAlpha;
 
-      // Flujo continuo del agua en cascada y quebrada
-      this.waterTextures.forEach((tex) => {
-        tex.offset.y -= dt * 0.85;
+      // Nubes flotando suavemente por el cielo
+      this.cloudMeshes.forEach((cloud) => {
+        const d = cloud.userData;
+        const a = d.baseAngle + elapsed * d.speed;
+        cloud.position.x = Math.cos(a) * d.dist;
+        cloud.position.z = Math.sin(a) * d.dist;
       });
 
-      // Marcadores flotantes
       this.markers.forEach((group, idx) => {
         const basePt = this.boardwalkCurve.getPointAt(this.stationTs[idx]);
         group.position.y = basePt.y + 2.25 + Math.sin(elapsed * 2 + idx) * 0.1;
         group.children[0].rotation.y = elapsed * 0.85;
       });
 
-      // Aves en vuelo suave junto al Mirador de Aves
       this.birds.forEach((bird) => {
         const d = bird.userData;
         const t = elapsed * d.speed + d.phase;
@@ -1403,8 +1679,8 @@ export class TrailScene {
       if (this.mistParticles) {
         const pos = this.mistParticles.geometry.attributes.position;
         for (let i = 0; i < pos.count; i++) {
-          let y = pos.getY(i) + dt * 0.5;
-          if (y > 4.4) y = 1.1;
+          let y = pos.getY(i) + dt * 0.55;
+          if (y > 4.6) y = 1.05;
           pos.setY(i, y);
         }
         pos.needsUpdate = true;
