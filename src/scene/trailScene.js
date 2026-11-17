@@ -7,8 +7,10 @@ import {
   createRiverShaderMaterial,
   enhanceTerrainMaterialWithShader,
   enhanceBarkWithMossShader,
+  enhanceLeafCardWindShader,
   enhanceFoliageWithWindShader
 } from './shaders.js';
+import { buildProceduralTreeGeometries } from './realisticTrees.js';
 
 /**
  * Escena 3D inmersiva de "Sendero Vivo 3D" (recorrido de 250 m).
@@ -60,6 +62,7 @@ export class TrailScene {
     this.loadTextures();
     this.initRenderer();
     this.initScene();
+    this.treeMaterials = this.createTreeMaterialLibrary();
     this.buildCurve();
     this.buildTerrain();
     this.buildStreamBedWater();
@@ -87,6 +90,15 @@ export class TrailScene {
       return tex;
     };
 
+    const loadLeafTex = (path) => {
+      const tex = loader.load(path);
+      tex.wrapS = THREE.ClampToEdgeWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      return tex;
+    };
+
     this.textures = {
       ground: loadTex('/textures/forest_ground.jpg', 36, 36),
       meadowGround: loadTex('/textures/ground_meadow_flowers.jpg', 28, 28),
@@ -99,12 +111,64 @@ export class TrailScene {
       barkCedar: loadTex('/textures/bark_red_cedar.jpg', 2, 4),
       foliage: loadTex('/textures/foliage_canopy.jpg', 2, 2),
       foliageGolden: loadTex('/textures/foliage_golden_olive.jpg', 2, 2),
+      leafOak: loadLeafTex('/textures/leaves/oak_color.png'),
+      leafAsh: loadLeafTex('/textures/leaves/ash_color.png'),
+      leafAspen: loadLeafTex('/textures/leaves/aspen_color.png'),
+      leafPine: loadLeafTex('/textures/leaves/pine_color.png'),
       fernFrond: this.createFernFrondTexture(),
       textile: loadTex('/textures/andean_textile.jpg', 1, 1.3),
       welcomeMap: loadTex('/textures/welcome_map.jpg', 1, 1),
       waterFoam: this.createWaterStreamTexture(),
       softParticle: this.createSoftParticleTexture()
     };
+  }
+
+  /** Biblioteca compartida de cortezas con musgo GLSL y tarjetas foliares con recorte alfa. */
+  createTreeMaterialLibrary() {
+    const barkSpecs = {
+      oak: { tex: this.textures.bark, color: 0xf4eee4, bump: 0.09 },
+      birch: { tex: this.textures.barkBirch, color: 0xf6f3ea, bump: 0.065 },
+      cedar: { tex: this.textures.barkCedar, color: 0xf4ded3, bump: 0.085 }
+    };
+    const bark = {};
+    for (const [key, spec] of Object.entries(barkSpecs)) {
+      const mat = new THREE.MeshStandardMaterial({
+        map: spec.tex,
+        bumpMap: spec.tex,
+        bumpScale: spec.bump,
+        color: spec.color,
+        roughness: 0.91
+      });
+      enhanceBarkWithMossShader(mat);
+      bark[key] = mat;
+    }
+
+    const leafSpecs = {
+      oak: { tex: this.textures.leafOak, tint: 0xdff2d2, alphaTest: 0.42 },
+      ash: { tex: this.textures.leafAsh, tint: 0xe6f4d9, alphaTest: 0.42 },
+      aspen: { tex: this.textures.leafAspen, tint: 0xcfe888, alphaTest: 0.42 },
+      pine: { tex: this.textures.leafPine, tint: 0xdcf0d4, alphaTest: 0.34 }
+    };
+    const leaves = {};
+    const leafDepth = {};
+    for (const [key, spec] of Object.entries(leafSpecs)) {
+      const mat = new THREE.MeshStandardMaterial({
+        map: spec.tex,
+        color: spec.tint,
+        alphaTest: spec.alphaTest,
+        side: THREE.DoubleSide,
+        roughness: 0.78,
+        metalness: 0.02
+      });
+      enhanceLeafCardWindShader(mat, this.uTime);
+      leaves[key] = mat;
+      leafDepth[key] = new THREE.MeshDepthMaterial({
+        depthPacking: THREE.RGBADepthPacking,
+        map: spec.tex,
+        alphaTest: spec.alphaTest
+      });
+    }
+    return { bark, leaves, leafDepth };
   }
 
   /** Textura procedural continua de cantos rodados, grava y arena de río para las orillas. */
@@ -804,8 +868,8 @@ export class TrailScene {
   }
 
   /**
-   * Estación 2: Árbol Abuelo situado limpiamente fuera de la pasarela (8,5 m al noroeste)
-   * con raíces tablares curvas, ramas crecientes hacia arriba en TubeGeometry y bromelias orgánicas.
+   * Estación 2: Árbol Abuelo procedural realista fuera de la pasarela (8,8 m al noroeste)
+   * con raíces tablares, ramificación jerárquica natural, hojas con recorte alfa, lianas y bromelias.
    */
   buildArbolAbuelo() {
     const t2 = this.stationTs[1];
@@ -815,108 +879,60 @@ export class TrailScene {
 
     this.createDeckPlatform(pt.x, pt.y - 0.02, pt.z, 5.4, 5.4, 0.75);
 
-    const treePos = pt.clone().addScaledVector(leftSide, 8.6);
+    const treePos = pt.clone().addScaledVector(leftSide, 8.8);
     const groundY = this.getTerrainHeight(treePos.x, treePos.z);
     this.grandfatherTreePos = new THREE.Vector3(treePos.x, groundY, treePos.z);
-    this.grandfatherTreeLookTarget = new THREE.Vector3(treePos.x, groundY + 4.1, treePos.z);
+    this.grandfatherTreeLookTarget = new THREE.Vector3(treePos.x, groundY + 4.4, treePos.z);
 
     const treeGroup = new THREE.Group();
-    treeGroup.position.set(treePos.x, groundY - 0.15, treePos.z);
+    treeGroup.position.set(treePos.x, groundY - 0.16, treePos.z);
 
-    const barkMat = new THREE.MeshStandardMaterial({
-      map: this.textures.bark,
-      bumpMap: this.textures.bark,
-      bumpScale: 0.11,
-      roughness: 0.92
-    });
-    const leafMat = new THREE.MeshStandardMaterial({
-      map: this.textures.foliage,
-      bumpMap: this.textures.foliage,
-      bumpScale: 0.05,
-      roughness: 0.82
-    });
-    enhanceFoliageWithWindShader(leafMat, this.uTime);
+    const treeData = buildProceduralTreeGeometries('grandfather', 7142);
+    const barkMat = this.treeMaterials.bark.oak;
+    const leafMat = this.treeMaterials.leaves.oak;
 
-    // Tronco ligeramente cónico y orgánico
-    const trunkCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0.25, 2.8, -0.15),
-      new THREE.Vector3(0.15, 5.6, 0.1),
-      new THREE.Vector3(0, 8.0, 0.05)
-    ]);
-    const trunk = new THREE.Mesh(new THREE.TubeGeometry(trunkCurve, 18, 1.05, 12, false), barkMat);
-    trunk.castShadow = true;
-    trunk.receiveShadow = true;
-    treeGroup.add(trunk);
+    const branchMesh = new THREE.Mesh(treeData.branchGeo, barkMat);
+    branchMesh.castShadow = true;
+    branchMesh.receiveShadow = true;
+    treeGroup.add(branchMesh);
 
-    // Base ensanchada y 6 raíces tablares abrazando el suelo musgoso
-    const baseCollar = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.55, 2.2, 12), barkMat);
-    baseCollar.position.y = 1.0;
-    baseCollar.castShadow = true;
-    treeGroup.add(baseCollar);
+    const leafMesh = new THREE.Mesh(treeData.leafGeo, leafMat);
+    leafMesh.castShadow = true;
+    leafMesh.receiveShadow = true;
+    leafMesh.customDepthMaterial = this.treeMaterials.leafDepth.oak;
+    treeGroup.add(leafMesh);
 
+    // Raíces tablares musgosas abrazando la base ensanchada del tronco
     for (let i = 0; i < 6; i++) {
       const ang = (i / 6) * Math.PI * 2 + 0.25;
       const rootCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(Math.cos(ang) * 0.7, 2.1, Math.sin(ang) * 0.7),
-        new THREE.Vector3(Math.cos(ang) * 1.65, 0.9, Math.sin(ang) * 1.65),
-        new THREE.Vector3(Math.cos(ang) * 2.9, 0.05, Math.sin(ang) * 2.9)
+        new THREE.Vector3(Math.cos(ang) * 0.38, 1.55, Math.sin(ang) * 0.38),
+        new THREE.Vector3(Math.cos(ang) * 1.15, 0.55, Math.sin(ang) * 1.15),
+        new THREE.Vector3(Math.cos(ang) * 2.1, -0.05, Math.sin(ang) * 2.1)
       ]);
-      const rootMesh = new THREE.Mesh(new THREE.TubeGeometry(rootCurve, 10, 0.28, 7, false), barkMat);
+      const rootMesh = new THREE.Mesh(new THREE.TubeGeometry(rootCurve, 9, 0.18, 7, false), barkMat);
       rootMesh.castShadow = true;
       treeGroup.add(rootMesh);
     }
 
-    // Ramas principales curvas saliendo DESDE dentro del tronco hacia arriba y afuera
-    const branchAngles = [0.35, 1.85, 3.35, 4.95];
+    // Lianas colgantes y bromelias epífitas ancladas a ramas primarias reales generadas
     const vineMat = new THREE.MeshStandardMaterial({ color: 0x3b6938, roughness: 0.88 });
-
-    branchAngles.forEach((ang, idx) => {
-      const attachY = 5.0 + (idx % 2) * 0.9;
-      const reach = 3.8 + (idx % 2) * 0.8;
-      const tipY = attachY + 2.8 + (idx % 2) * 0.6;
-      const dx = Math.cos(ang);
-      const dz = Math.sin(ang);
-
-      const branchCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(dx * 0.35, attachY, dz * 0.35),
-        new THREE.Vector3(dx * (reach * 0.52), attachY + 1.45, dz * (reach * 0.52)),
-        new THREE.Vector3(dx * reach, tipY, dz * reach)
-      ]);
-      const branch = new THREE.Mesh(new THREE.TubeGeometry(branchCurve, 12, 0.32, 8, false), barkMat);
-      branch.castShadow = true;
-      treeGroup.add(branch);
-
-      // Racimos frondosos en la punta de cada rama
-      const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry(2.35, 1), leafMat);
-      canopy.scale.set(1.25, 0.88, 1.25);
-      canopy.position.set(dx * reach, tipY + 0.6, dz * reach);
-      canopy.castShadow = true;
-      treeGroup.add(canopy);
-
-      // Lianas musgosas colgantes ancladas directamente sobre la rama
-      const vineStart = branchCurve.getPointAt(0.58);
+    const anchors = treeData.primaryBranchAnchors.slice(0, 5);
+    anchors.forEach((anchor, idx) => {
+      const vineStart = anchor.mid;
+      const dropLen = 2.0 + (idx % 2) * 0.55;
       const vineCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(vineStart.x, vineStart.y, vineStart.z),
-        new THREE.Vector3(vineStart.x + 0.1, vineStart.y - 1.1, vineStart.z - 0.08),
-        new THREE.Vector3(vineStart.x - 0.04, vineStart.y - 2.3, vineStart.z + 0.06)
+        vineStart.clone(),
+        vineStart.clone().add(new THREE.Vector3(0.08, -dropLen * 0.5, -0.06)),
+        vineStart.clone().add(new THREE.Vector3(-0.04, -dropLen, 0.05))
       ]);
-      treeGroup.add(new THREE.Mesh(new THREE.TubeGeometry(vineCurve, 8, 0.035, 5, false), vineMat));
+      treeGroup.add(new THREE.Mesh(new THREE.TubeGeometry(vineCurve, 7, 0.03, 5, false), vineMat));
 
-      // Roseta orgánica de bromelia epífita posada sobre la rama
-      const rosetteAnchor = branchCurve.getPointAt(0.32);
       const rosette = this.createBromeliadRosette(idx % 2 === 0 ? 0xe05a47 : 0xe89a38);
-      rosette.position.set(rosetteAnchor.x, rosetteAnchor.y + 0.24, rosetteAnchor.z);
-      rosette.rotation.z = -dx * 0.25;
+      rosette.position.copy(anchor.base).add(new THREE.Vector3(0, 0.12, 0));
+      rosette.rotation.z = (idx % 2 === 0 ? -1 : 1) * 0.2;
       treeGroup.add(rosette);
     });
-
-    // Copa central alta
-    const crownTop = new THREE.Mesh(new THREE.IcosahedronGeometry(3.0, 1), leafMat);
-    crownTop.scale.set(1.3, 0.92, 1.3);
-    crownTop.position.set(0, 9.1, 0);
-    crownTop.castShadow = true;
-    treeGroup.add(crownTop);
 
     this.scene.add(treeGroup);
   }
@@ -1141,37 +1157,31 @@ export class TrailScene {
     const treeZ = 5.5;
     const gy = this.getTerrainHeight(treeX, treeZ);
     const blossomTree = new THREE.Group();
-    blossomTree.position.set(treeX, gy - 0.1, treeZ);
+    blossomTree.position.set(treeX, gy - 0.12, treeZ);
 
-    const trunkCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0.3, 2.2, -0.2),
-      new THREE.Vector3(0.1, 4.4, 0.15)
-    ]);
-    const trunk = new THREE.Mesh(
-      new THREE.TubeGeometry(trunkCurve, 10, 0.36, 8, false),
-      new THREE.MeshStandardMaterial({ map: this.textures.bark, roughness: 0.9 })
-    );
-    trunk.castShadow = true;
-    blossomTree.add(trunk);
+    const blossomData = buildProceduralTreeGeometries('blossomCanopy', 2048);
+    const branchMesh = new THREE.Mesh(blossomData.branchGeo, this.treeMaterials.bark.cedar);
+    branchMesh.castShadow = true;
+    branchMesh.receiveShadow = true;
+    blossomTree.add(branchMesh);
 
-    const leafMat = new THREE.MeshStandardMaterial({ map: this.textures.foliage, roughness: 0.8 });
-    enhanceFoliageWithWindShader(leafMat, this.uTime);
-    const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(2.1, 1), leafMat);
-    crown.position.y = 4.9;
-    crown.castShadow = true;
-    blossomTree.add(crown);
+    const leafMesh = new THREE.Mesh(blossomData.leafGeo, this.treeMaterials.leaves.ash);
+    leafMesh.castShadow = true;
+    leafMesh.receiveShadow = true;
+    leafMesh.customDepthMaterial = this.treeMaterials.leafDepth.ash;
+    blossomTree.add(leafMesh);
 
-    const blossomMat = new THREE.MeshStandardMaterial({ color: 0xf4845f, roughness: 0.5 });
-    for (let i = 0; i < 12; i++) {
-      const ang = (i / 12) * Math.PI * 2;
-      const flower = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), blossomMat);
-      flower.position.set(
-        Math.cos(ang) * (1.2 + (i % 3) * 0.35),
-        4.4 + (i % 3) * 0.55,
-        Math.sin(ang) * (1.2 + (i % 3) * 0.35)
-      );
-      blossomTree.add(flower);
+    // Flores andinas ancladas directamente sobre puntas reales de ramas y hojas
+    const blossomMat = new THREE.MeshStandardMaterial({ color: 0xf27d58, roughness: 0.55 });
+    const anchors = blossomData.leafTipAnchors;
+    if (anchors.length > 0) {
+      const step = Math.max(1, Math.floor(anchors.length / 22));
+      const flowerGeo = new THREE.SphereGeometry(0.11, 7, 6);
+      for (let i = 0; i < anchors.length; i += step) {
+        const flower = new THREE.Mesh(flowerGeo, blossomMat);
+        flower.position.copy(anchors[i]);
+        blossomTree.add(flower);
+      }
     }
     this.scene.add(blossomTree);
   }
@@ -1315,45 +1325,11 @@ export class TrailScene {
   }
 
   /**
-   * Construye el bosque nublado con 5 especies de árboles, múltiples texturas de corteza
-   * (con musgo GLSL), copas orgánicas, helechos arborescentes curvados y abundante sotobosque.
+   * Construye el bosque nublado con 9 prototipos arbóreos procedurales instanciados
+   * (roble, cedro/nogal, aliso plateado, Polylepis rojizo y romerillo), helechos arborescentes
+   * arqueados y abundante sotobosque de arbustos ramificados reales y helechos rastreros.
    */
   buildForestAndFlora() {
-    const barkSpecs = [
-      { tex: this.textures.bark, color: 0xffffff, bump: 0.09 },
-      { tex: this.textures.bark, color: 0xc2b29d, bump: 0.08 },
-      { tex: this.textures.barkBirch, color: 0xf4f2ea, bump: 0.06 },
-      { tex: this.textures.barkCedar, color: 0xf0dcd0, bump: 0.085 }
-    ];
-    const barkMats = barkSpecs.map((spec) => {
-      const m = new THREE.MeshStandardMaterial({
-        map: spec.tex,
-        bumpMap: spec.tex,
-        bumpScale: spec.bump,
-        color: spec.color,
-        roughness: 0.91
-      });
-      enhanceBarkWithMossShader(m);
-      return m;
-    });
-
-    const foliageSpecs = [
-      { tex: this.textures.foliage, color: 0xddf2d4 },
-      { tex: this.textures.foliage, color: 0xb7deb0 },
-      { tex: this.textures.foliageGolden, color: 0xe6efc4 },
-      { tex: this.textures.foliageGolden, color: 0xcde3a8 },
-      { tex: this.textures.foliage, color: 0x98c994 }
-    ];
-    const foliageMats = foliageSpecs.map((spec) => {
-      const m = new THREE.MeshStandardMaterial({
-        map: spec.tex,
-        color: spec.color,
-        roughness: 0.85
-      });
-      enhanceFoliageWithWindShader(m, this.uTime);
-      return m;
-    });
-
     const fernMat = new THREE.MeshStandardMaterial({
       map: this.textures.fernFrond,
       alphaTest: 0.34,
@@ -1375,14 +1351,32 @@ export class TrailScene {
       (hex) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.65 })
     );
 
-    // Geometrías compartidas suavemente perturbadas para evitar poliedros bruscos
-    const crownGeos = [
-      this.perturbGeometry(new THREE.IcosahedronGeometry(1, 2), 0.1, 31),
-      this.perturbGeometry(new THREE.IcosahedronGeometry(1, 2), 0.12, 67)
-    ];
-    const shrubGeo = this.perturbGeometry(new THREE.IcosahedronGeometry(0.55, 2), 0.11, 19);
     const frondGeoTree = this.createCurvedFrondGeometry(1.9, 0.76, 0.34, 0.56);
     const frondGeoGround = this.createCurvedFrondGeometry(1.05, 0.44, 0.44, 0.52);
+
+    // 9 prototipos arbóreos reales con ramas cónicas y tarjetas foliares alfa
+    const treeSpecs = [
+      { preset: 'oakCloud', seed: 101 },
+      { preset: 'oakCloud', seed: 307 },
+      { preset: 'ashAndean', seed: 203 },
+      { preset: 'ashAndean', seed: 409 },
+      { preset: 'birchAlder', seed: 511 },
+      { preset: 'birchAlder', seed: 613 },
+      { preset: 'polylepis', seed: 719 },
+      { preset: 'polylepis', seed: 823 },
+      { preset: 'podocarpus', seed: 929 }
+    ];
+    const treeProtos = treeSpecs.map((spec) => ({
+      data: buildProceduralTreeGeometries(spec.preset, spec.seed),
+      matrices: []
+    }));
+
+    // 2 prototipos de arbustos ramificados reales (reemplazan esferas poligonales en el suelo)
+    const shrubProtos = [
+      { data: buildProceduralTreeGeometries('shrubAsh', 41), matrices: [] },
+      { data: buildProceduralTreeGeometries('shrubOak', 73), matrices: [] }
+    ];
+    const flowerBuckets = blossomMats.map(() => []);
 
     let seed = 91;
     const rand = () => {
@@ -1390,64 +1384,66 @@ export class TrailScene {
       return seed / 4294967296;
     };
 
-    // 1) 255 árboles variados de 5 especies nubladas
+    const dummy = new THREE.Object3D();
+
+    // 1) Distribuir 255 árboles: ~90% arbóreos procedurales realistas + ~10% helechos arborescentes
     for (let i = 0; i < 255; i++) {
       const x = (rand() - 0.5) * 195;
       const z = (rand() - 0.5) * 195;
       if (this.isNearTrailOrWater(x, z)) continue;
 
       const y = this.getTerrainHeight(x, z);
-      const scale = 0.8 + rand() * 1.15;
-      const crownGeo = crownGeos[i % crownGeos.length];
+      const scale = 0.85 + rand() * 0.45;
       const rotY = rand() * Math.PI * 2;
-      const species = i % 10;
 
-      let tree;
-      if (species < 2) {
-        // Aliso plateado de corteza clara y copa verde oliva dorada
-        tree = this.createSlenderBirchTree(
-          scale,
-          barkMats[2],
-          foliageMats[2 + (i % 2)],
-          rand,
-          crownGeo
+      if (i % 10 === 9) {
+        const fernScale = 0.8 + rand() * 0.9;
+        const treeFern = this.createMountainTreeFern(
+          fernScale,
+          this.treeMaterials.bark.oak,
+          fernMat,
+          frondGeoTree,
+          rand
         );
-      } else if (species < 4) {
-        // Yagual / Polylepis andino multicaule de corteza rojiza
-        tree = this.createGnarledRedBarkTree(
-          scale,
-          barkMats[3],
-          foliageMats[i % 2 === 0 ? 0 : 4],
-          rand,
-          crownGeo
-        );
-      } else if (species < 7) {
-        // Cedro o roble bifurcado en Y
-        tree = this.createForkedTree(
-          scale,
-          barkMats[i % 2],
-          foliageMats[i % foliageMats.length],
-          rand,
-          crownGeo
-        );
-      } else if (species < 9) {
-        // Árbol curvo de dosel denso
-        tree = this.createCurvedCanopyTree(
-          scale,
-          barkMats[i % 3 === 0 ? 3 : i % 2],
-          foliageMats[(i + 1) % foliageMats.length],
-          rand,
-          crownGeo
-        );
+        treeFern.position.set(x, y - 0.16, z);
+        treeFern.rotation.y = rotY;
+        this.scene.add(treeFern);
       } else {
-        // Helecho arborescente Cyathea con frondas plumosas arqueadas
-        tree = this.createMountainTreeFern(scale, barkMats[1], fernMat, frondGeoTree, rand);
+        const protoIdx = Math.floor(rand() * treeProtos.length);
+        dummy.position.set(x, y - 0.14, z);
+        dummy.rotation.set((rand() - 0.5) * 0.04, rotY, (rand() - 0.5) * 0.04);
+        dummy.scale.setScalar(scale);
+        dummy.updateMatrix();
+        treeProtos[protoIdx].matrices.push(dummy.matrix.clone());
       }
-
-      tree.position.set(x, y - 0.16, z);
-      tree.rotation.y = rotY;
-      this.scene.add(tree);
     }
+
+    const pushShrubInstance = (sx, sy, sz, sScale, rotY, addFlowers) => {
+      const bucket = shrubProtos[Math.floor(rand() * shrubProtos.length)];
+      dummy.position.set(sx, sy - 0.04, sz);
+      dummy.rotation.set(0, rotY, 0);
+      dummy.scale.setScalar(sScale);
+      dummy.updateMatrix();
+      bucket.matrices.push(dummy.matrix.clone());
+
+      if (addFlowers) {
+        const fBucket = flowerBuckets[Math.floor(rand() * flowerBuckets.length)];
+        const count = 4 + Math.floor(rand() * 3);
+        for (let f = 0; f < count; f++) {
+          const ang = (f / count) * Math.PI * 2 + rand() * 0.4;
+          const rad = (0.28 + rand() * 0.42) * sScale;
+          dummy.position.set(
+            sx + Math.cos(ang) * rad,
+            sy + (0.65 + rand() * 0.38) * sScale,
+            sz + Math.sin(ang) * rad
+          );
+          dummy.rotation.set(0, rand() * Math.PI, 0);
+          dummy.scale.setScalar(sScale * 0.95);
+          dummy.updateMatrix();
+          fBucket.push(dummy.matrix.clone());
+        }
+      }
+    };
 
     // 2) Bordes verdes vivos a lo largo de ambos lados de toda la pasarela
     for (let i = 2; i < this.boardwalkSamples.length - 1; i++) {
@@ -1468,24 +1464,19 @@ export class TrailScene {
         if (this.isBlockedForUnderstory(sx, sz)) continue;
 
         const sy = this.getTerrainHeight(sx, sz);
-        if (rand() < 0.42) {
+        if (rand() < 0.4) {
           const fernClump = this.createGroundFernClump(0.78 + rand() * 0.55, fernMat, frondGeoGround, rand);
           fernClump.position.set(sx, sy - 0.04, sz);
           fernClump.rotation.y = rand() * Math.PI * 2;
           this.scene.add(fernClump);
         } else {
-          const leafMat = foliageMats[Math.floor(rand() * foliageMats.length)];
-          const fMat = rand() > 0.48 ? blossomMats[Math.floor(rand() * blossomMats.length)] : null;
-          const shrub = this.createUnderstoryShrub(0.82 + rand() * 0.65, leafMat, rand, shrubGeo, fMat);
-          shrub.position.set(sx, sy - 0.08, sz);
-          shrub.rotation.y = rand() * Math.PI * 2;
-          this.scene.add(shrub);
+          pushShrubInstance(sx, sy, sz, 0.85 + rand() * 0.5, rand() * Math.PI * 2, rand() > 0.48);
         }
       }
     }
 
-    // 3) Sotobosque amplio del valle: arbustos frondosos, flores, helechos rastreros, troncos y rocas
-    for (let i = 0; i < 240; i++) {
+    // 3) Sotobosque amplio del valle: arbustos ramificados, helechos, troncos caídos y rocas
+    for (let i = 0; i < 245; i++) {
       const x = (rand() - 0.5) * 165;
       const z = (rand() - 0.5) * 165;
       if (this.isOnBoardwalkCore(x, z)) continue;
@@ -1499,7 +1490,7 @@ export class TrailScene {
         ]);
         const log = new THREE.Mesh(
           new THREE.TubeGeometry(logCurve, 8, 0.24 + rand() * 0.12, 7, false),
-          barkMats[1]
+          this.treeMaterials.bark.oak
         );
         log.position.set(x, y, z);
         log.rotation.y = rand() * Math.PI;
@@ -1524,53 +1515,54 @@ export class TrailScene {
           fernClump.rotation.y = rand() * Math.PI * 2;
           this.scene.add(fernClump);
         } else {
-          const leafMat = foliageMats[i % foliageMats.length];
-          const fMat = rand() > 0.55 ? blossomMats[i % blossomMats.length] : null;
-          const shrub = this.createUnderstoryShrub(0.9 + rand() * 0.85, leafMat, rand, shrubGeo, fMat);
-          shrub.position.set(x, y - 0.08, z);
-          shrub.rotation.y = rand() * Math.PI * 2;
-          this.scene.add(shrub);
+          pushShrubInstance(x, y, z, 0.85 + rand() * 0.6, rand() * Math.PI * 2, rand() > 0.52);
         }
       }
     }
-  }
 
-  /** Arbusto multicapa del sotobosque con racimos foliares y flores andinas opcionales. */
-  createUnderstoryShrub(scale, leafMat, rand, shrubGeo, flowerMat) {
-    const group = new THREE.Group();
-    const lobes = 3 + Math.floor(rand() * 3);
-    for (let j = 0; j < lobes; j++) {
-      const ang = (j / lobes) * Math.PI * 2 + rand() * 0.5;
-      const dist = j === 0 ? 0 : (0.28 + rand() * 0.25) * scale;
-      const lobe = new THREE.Mesh(shrubGeo, leafMat);
-      const rScale = (j === 0 ? 1.05 : 0.72 + rand() * 0.25) * scale;
-      lobe.scale.set(rScale * 1.15, rScale * (j === 0 ? 0.92 : 0.76), rScale * 1.15);
-      lobe.position.set(
-        Math.cos(ang) * dist,
-        (j === 0 ? 0.42 : 0.3) * scale,
-        Math.sin(ang) * dist
-      );
-      lobe.castShadow = true;
-      lobe.receiveShadow = true;
-      group.add(lobe);
-    }
+    // Emitir InstancedMesh por cada prototipo arbóreo y arbustivo (bajas llamadas draw)
+    const addInstancedGroup = (proto) => {
+      const count = proto.matrices.length;
+      if (count === 0) return;
 
-    if (flowerMat) {
-      const blooms = 4 + Math.floor(rand() * 4);
-      const bloomGeo = new THREE.SphereGeometry(0.068 * scale, 6, 5);
-      for (let f = 0; f < blooms; f++) {
-        const ang = (f / blooms) * Math.PI * 2 + rand() * 0.4;
-        const rad = (0.18 + rand() * 0.38) * scale;
-        const bloom = new THREE.Mesh(bloomGeo, flowerMat);
-        bloom.position.set(
-          Math.cos(ang) * rad,
-          (0.58 + rand() * 0.26) * scale,
-          Math.sin(ang) * rad
-        );
-        group.add(bloom);
-      }
-    }
-    return group;
+      const { branchGeo, leafGeo, options } = proto.data;
+      const barkMat = this.treeMaterials.bark[options.bark.type] || this.treeMaterials.bark.oak;
+      const leafMat = this.treeMaterials.leaves[options.leaves.type] || this.treeMaterials.leaves.oak;
+      const depthMat =
+        this.treeMaterials.leafDepth[options.leaves.type] || this.treeMaterials.leafDepth.oak;
+
+      const barkInst = new THREE.InstancedMesh(branchGeo, barkMat, count);
+      const leafInst = new THREE.InstancedMesh(leafGeo, leafMat, count);
+      barkInst.castShadow = true;
+      barkInst.receiveShadow = true;
+      barkInst.frustumCulled = false;
+
+      leafInst.castShadow = true;
+      leafInst.receiveShadow = true;
+      leafInst.frustumCulled = false;
+      leafInst.customDepthMaterial = depthMat;
+
+      proto.matrices.forEach((mat, idx) => {
+        barkInst.setMatrixAt(idx, mat);
+        leafInst.setMatrixAt(idx, mat);
+      });
+      barkInst.instanceMatrix.needsUpdate = true;
+      leafInst.instanceMatrix.needsUpdate = true;
+      this.scene.add(barkInst, leafInst);
+    };
+
+    treeProtos.forEach(addInstancedGroup);
+    shrubProtos.forEach(addInstancedGroup);
+
+    const flowerGeo = new THREE.SphereGeometry(0.065, 6, 5);
+    flowerBuckets.forEach((matrices, idx) => {
+      if (matrices.length === 0) return;
+      const flowerInst = new THREE.InstancedMesh(flowerGeo, blossomMats[idx], matrices.length);
+      flowerInst.frustumCulled = false;
+      matrices.forEach((m, i) => flowerInst.setMatrixAt(i, m));
+      flowerInst.instanceMatrix.needsUpdate = true;
+      this.scene.add(flowerInst);
+    });
   }
 
   /** Roseta de helecho rastrero natural con frondas arqueadas hacia afuera. */
@@ -1587,156 +1579,6 @@ export class TrailScene {
       frond.rotation.x = -0.25 - rand() * 0.2;
       frond.castShadow = true;
       group.add(frond);
-    }
-    return group;
-  }
-
-  createCurvedCanopyTree(scale, barkMat, leafMat, rand, crownGeo) {
-    const group = new THREE.Group();
-    const leanX = (rand() - 0.5) * 0.85 * scale;
-    const leanZ = (rand() - 0.5) * 0.85 * scale;
-    const h = (4.6 + rand() * 1.4) * scale;
-
-    const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(leanX * 0.5, h * 0.5, leanZ * 0.5),
-      new THREE.Vector3(leanX, h, leanZ)
-    ]);
-    const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 10, 0.25 * scale, 8, false), barkMat);
-    trunk.castShadow = true;
-    group.add(trunk);
-
-    const clusters = [
-      [leanX, h + 0.5 * scale, leanZ, 1.72],
-      [leanX - 0.9 * scale, h - 0.3 * scale, leanZ + 0.7 * scale, 1.32],
-      [leanX + 0.9 * scale, h - 0.1 * scale, leanZ - 0.6 * scale, 1.35]
-    ];
-    clusters.forEach(([cx, cy, cz, r]) => {
-      const crown = new THREE.Mesh(crownGeo, leafMat);
-      const rs = r * scale;
-      crown.scale.set(rs * 1.2, rs * 0.82, rs * 1.2);
-      crown.position.set(cx, cy, cz);
-      crown.castShadow = true;
-      crown.receiveShadow = true;
-      group.add(crown);
-    });
-    return group;
-  }
-
-  /** Aliso plateado andino de tronco esbelto claro y copa ligera en niveles. */
-  createSlenderBirchTree(scale, barkMat, leafMat, rand, crownGeo) {
-    const group = new THREE.Group();
-    const h = (5.6 + rand() * 1.6) * scale;
-    const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3((rand() - 0.5) * 0.45 * scale, h * 0.45, (rand() - 0.5) * 0.45 * scale),
-      new THREE.Vector3((rand() - 0.5) * 0.5 * scale, h, (rand() - 0.5) * 0.5 * scale)
-    ]);
-    const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 11, 0.17 * scale, 8, false), barkMat);
-    trunk.castShadow = true;
-    group.add(trunk);
-
-    for (let b = 0; b < 3; b++) {
-      const origin = curve.getPointAt(0.58 + b * 0.14);
-      const ang = (b / 3) * Math.PI * 2 + rand() * 0.6;
-      const reach = (1.15 + rand() * 0.45) * scale;
-      const bCurve = new THREE.CatmullRomCurve3([
-        origin.clone(),
-        origin.clone().add(new THREE.Vector3(Math.cos(ang) * reach * 0.55, 0.75 * scale, Math.sin(ang) * reach * 0.55)),
-        origin.clone().add(new THREE.Vector3(Math.cos(ang) * reach, 1.45 * scale, Math.sin(ang) * reach))
-      ]);
-      const branch = new THREE.Mesh(new THREE.TubeGeometry(bCurve, 6, 0.08 * scale, 6, false), barkMat);
-      branch.castShadow = true;
-      group.add(branch);
-
-      const tip = bCurve.getPointAt(1);
-      const crown = new THREE.Mesh(crownGeo, leafMat);
-      const rs = (1.18 + rand() * 0.25) * scale;
-      crown.scale.set(rs * 1.18, rs * 0.76, rs * 1.18);
-      crown.position.copy(tip).add(new THREE.Vector3(0, 0.25 * scale, 0));
-      crown.castShadow = true;
-      group.add(crown);
-    }
-
-    const topCrown = new THREE.Mesh(crownGeo, leafMat);
-    const topPos = curve.getPointAt(1);
-    const rs = 1.42 * scale;
-    topCrown.scale.set(rs * 1.15, rs * 0.85, rs * 1.15);
-    topCrown.position.copy(topPos).add(new THREE.Vector3(0, 0.45 * scale, 0));
-    topCrown.castShadow = true;
-    group.add(topCrown);
-    return group;
-  }
-
-  /** Árbol andino Polylepis multicaule de troncos retorcidos rojizos. */
-  createGnarledRedBarkTree(scale, barkMat, leafMat, rand, crownGeo) {
-    const group = new THREE.Group();
-    const stems = 2 + Math.floor(rand() * 2);
-    for (let s = 0; s < stems; s++) {
-      const ang = (s / stems) * Math.PI * 2 + rand() * 0.5;
-      const spread = (1.35 + rand() * 0.7) * scale;
-      const h = (3.8 + rand() * 1.3) * scale;
-      const stemCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(Math.cos(ang) * 0.18 * scale, 0, Math.sin(ang) * 0.18 * scale),
-        new THREE.Vector3(Math.cos(ang + 0.35) * spread * 0.65, h * 0.48, Math.sin(ang + 0.35) * spread * 0.65),
-        new THREE.Vector3(Math.cos(ang) * spread, h, Math.sin(ang) * spread)
-      ]);
-      const stem = new THREE.Mesh(
-        new THREE.TubeGeometry(stemCurve, 9, 0.18 * scale, 7, false),
-        barkMat
-      );
-      stem.castShadow = true;
-      group.add(stem);
-
-      const canopy = new THREE.Mesh(crownGeo, leafMat);
-      const rs = (1.42 + rand() * 0.3) * scale;
-      canopy.scale.set(rs * 1.3, rs * 0.72, rs * 1.3);
-      canopy.position.set(Math.cos(ang) * spread, h + 0.25 * scale, Math.sin(ang) * spread);
-      canopy.castShadow = true;
-      group.add(canopy);
-    }
-    return group;
-  }
-
-  createForkedTree(scale, barkMat, leafMat, rand, crownGeo) {
-    const group = new THREE.Group();
-    const forkH = 2.6 * scale;
-    const baseCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0.1 * scale, forkH * 0.5, 0),
-      new THREE.Vector3(0, forkH, 0)
-    ]);
-    const baseTrunk = new THREE.Mesh(
-      new THREE.TubeGeometry(baseCurve, 7, 0.28 * scale, 8, false),
-      barkMat
-    );
-    baseTrunk.castShadow = true;
-    group.add(baseTrunk);
-
-    const boughCount = 2 + Math.floor(rand() * 2);
-    for (let b = 0; b < boughCount; b++) {
-      const ang = (b / boughCount) * Math.PI * 2 + rand() * 0.4;
-      const spread = (1.6 + rand() * 0.7) * scale;
-      const topH = forkH + (2.3 + rand() * 0.9) * scale;
-      const dx = Math.cos(ang) * spread;
-      const dz = Math.sin(ang) * spread;
-
-      const bCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(0, forkH - 0.2 * scale, 0),
-        new THREE.Vector3(dx * 0.55, forkH + 1.1 * scale, dz * 0.55),
-        new THREE.Vector3(dx, topH, dz)
-      ]);
-      const bough = new THREE.Mesh(new THREE.TubeGeometry(bCurve, 7, 0.15 * scale, 7, false), barkMat);
-      bough.castShadow = true;
-      group.add(bough);
-
-      const cluster = new THREE.Mesh(crownGeo, leafMat);
-      const rs = 1.48 * scale;
-      cluster.scale.set(rs * 1.24, rs * 0.8, rs * 1.24);
-      cluster.position.set(dx, topH + 0.35 * scale, dz);
-      cluster.castShadow = true;
-      cluster.receiveShadow = true;
-      group.add(cluster);
     }
     return group;
   }

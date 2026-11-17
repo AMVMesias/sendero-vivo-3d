@@ -423,7 +423,11 @@ export function enhanceBarkWithMossShader(material) {
         '#include <worldpos_vertex>',
         `#include <worldpos_vertex>
          vBarkLocalPos = position;
-         vBarkWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`
+         vec4 barkWp = vec4(transformed, 1.0);
+         #ifdef USE_INSTANCING
+           barkWp = instanceMatrix * barkWp;
+         #endif
+         vBarkWorldPos = (modelMatrix * barkWp).xyz;`
       );
 
     shader.fragmentShader = shader.fragmentShader
@@ -438,17 +442,51 @@ export function enhanceBarkWithMossShader(material) {
         '#include <map_fragment>',
         `#include <map_fragment>
          float mossNoise = fbm(vBarkWorldPos.xz * 1.1 + vec2(0.0, vBarkLocalPos.y * 0.85));
-         float baseFactor = 1.0 - smoothstep(0.15, 1.65, max(0.0, vBarkLocalPos.y));
+         float baseFactor = 1.0 - smoothstep(0.15, 1.75, max(0.0, vBarkLocalPos.y));
          float patchMoss = smoothstep(0.42, 0.75, mossNoise + baseFactor * 0.48);
          vec3 mossColor = vec3(0.16, 0.28, 0.12);
          diffuseColor.rgb = mix(diffuseColor.rgb, mossColor, clamp(patchMoss * 0.62, 0.0, 0.65));`
       );
   };
-  material.customProgramCacheKey = () => 'bark-moss-shader-v1';
+  material.customProgramCacheKey = () => 'bark-moss-shader-v2';
 }
 
 /**
- * Añade balanceo suave por brisa en el shader de vértices de copas, arbustos y frondas.
+ * Añade balanceo por viento anclado al pecíolo (uv.y = 0) para tarjetas foliares botánicas e instancias.
+ */
+export function enhanceLeafCardWindShader(material, timeUniform) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uWindTime = timeUniform;
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         uniform float uWindTime;`
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+         vec4 leafWorldBase = vec4(transformed, 1.0);
+         #ifdef USE_INSTANCING
+           leafWorldBase = instanceMatrix * leafWorldBase;
+         #endif
+         vec4 leafWorld = modelMatrix * leafWorldBase;
+         #ifdef USE_UV
+           float flutter = uv.y;
+         #else
+           float flutter = 0.5;
+         #endif
+         float windPhase = leafWorld.x * 0.48 + leafWorld.z * 0.42 + leafWorld.y * 0.25;
+         transformed.x += sin(uWindTime * 1.65 + windPhase) * 0.055 * flutter;
+         transformed.z += cos(uWindTime * 1.35 + windPhase * 1.15) * 0.042 * flutter;
+         transformed.y += sin(uWindTime * 2.1 + windPhase * 0.7) * 0.015 * flutter;`
+      );
+  };
+  material.customProgramCacheKey = () => 'leaf-card-wind-shader-v1';
+}
+
+/**
+ * Añade balanceo suave por brisa en el shader de vértices de helechos e hierbas.
  */
 export function enhanceFoliageWithWindShader(material, timeUniform) {
   material.onBeforeCompile = (shader) => {
@@ -462,12 +500,16 @@ export function enhanceFoliageWithWindShader(material, timeUniform) {
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-         vec4 instWorld = modelMatrix * vec4(transformed, 1.0);
+         vec4 instWorldBase = vec4(transformed, 1.0);
+         #ifdef USE_INSTANCING
+           instWorldBase = instanceMatrix * instWorldBase;
+         #endif
+         vec4 instWorld = modelMatrix * instWorldBase;
          float sway = sin(uWindTime * 1.35 + instWorld.x * 0.45 + instWorld.z * 0.4) * 0.07;
          float lift = clamp(length(position.xz) * 0.42 + max(0.0, position.y) * 0.55, 0.0, 2.2);
          transformed.x += sway * lift;
          transformed.z += cos(uWindTime * 1.1 + instWorld.z * 0.5) * 0.048 * lift;`
       );
   };
-  material.customProgramCacheKey = () => 'foliage-wind-shader-v2';
+  material.customProgramCacheKey = () => 'foliage-wind-shader-v3';
 }
