@@ -107,9 +107,11 @@ export class TrailScene {
       meadowGround: loadTex('/textures/ground_meadow_flowers.jpg', 28, 28),
       pebbleGround: this.createRiverPebblesTexture(),
       wood: loadTex('/textures/wood_planks.jpg', 1, 1),
+      woodWet: loadTex('/textures/wood_wet_boardwalk.jpg', 2, 2),
       woodBeam: loadTex('/textures/wood_planks.jpg', 1, 3),
       rock: loadTex('/textures/cliff_rock.jpg', 3, 3),
       waterfallRock: loadTex('/textures/waterfall_basalt.jpg', 1, 1),
+      rockBasaltWet: loadTex('/textures/rock_volcanic_wet_basalt.jpg', 1, 1),
       rockSlate: loadTex('/textures/rock_slate_layered.jpg', 1, 1),
       rockRiverstone: loadTex('/textures/rock_wet_riverstone.jpg', 1, 1),
       rockMossy: loadTex('/textures/rock_mossy_ledge.jpg', 1, 1),
@@ -125,7 +127,7 @@ export class TrailScene {
       fernFrond: this.createFernFrondTexture(),
       textile: loadTex('/textures/andean_textile.jpg', 1, 1.3),
       welcomeMap: loadTex('/textures/welcome_map.jpg', 1, 1),
-      waterFoam: this.createWaterStreamTexture(),
+      waterFoam: loadTex('/textures/water_whitewater_foam.jpg', 1, 1),
       softParticle: this.createSoftParticleTexture()
     };
   }
@@ -341,40 +343,6 @@ export class TrailScene {
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
-    return tex;
-  }
-
-  /** Textura vertical espumosa para muestreo dual en los shaders de agua. */
-  createWaterStreamTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-
-    const grad = ctx.createLinearGradient(0, 0, 256, 0);
-    grad.addColorStop(0, '#2a8f9d');
-    grad.addColorStop(0.5, '#58c7d4');
-    grad.addColorStop(1, '#2a8f9d');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 256, 512);
-
-    for (let i = 0; i < 180; i++) {
-      const x = Math.random() * 256;
-      const y = Math.random() * 512;
-      const w = 2 + Math.random() * 9;
-      const h = 28 + Math.random() * 95;
-      ctx.fillStyle =
-        i % 3 === 0 ? 'rgba(244, 253, 255, 0.58)' : 'rgba(182, 245, 250, 0.36)';
-      ctx.fillRect(x, y, w, h);
-      if (y + h > 512) {
-        ctx.fillRect(x, y - 512, w, h);
-      }
-    }
-
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }
 
@@ -785,16 +753,17 @@ export class TrailScene {
     }
   }
 
-  createDeckPlatform(x, y, z, width, depth, rotY = 0) {
+  createDeckPlatform(x, y, z, width, depth, rotY = 0, useWetWood = false) {
     const group = new THREE.Group();
     group.position.set(x, y, z);
     group.rotation.y = rotY;
 
+    const deckTex = useWetWood ? this.textures.woodWet : this.textures.wood;
     const deckMat = new THREE.MeshStandardMaterial({
-      map: this.textures.wood,
-      bumpMap: this.textures.wood,
-      bumpScale: 0.03,
-      roughness: 0.82
+      map: deckTex,
+      bumpMap: deckTex,
+      bumpScale: useWetWood ? 0.045 : 0.03,
+      roughness: useWetWood ? 0.68 : 0.82
     });
     const trimMat = new THREE.MeshStandardMaterial({
       map: this.textures.woodBeam,
@@ -1174,80 +1143,100 @@ export class TrailScene {
 
   buildWaterfall() {
     const pt = this.boardwalkCurve.getPointAt(this.stationTs[3]);
-    this.createDeckPlatform(pt.x, pt.y - 0.02, pt.z, 5.2, 4.6, -0.74);
+    this.createDeckPlatform(pt.x, pt.y - 0.02, pt.z, 5.2, 4.6, -0.74, true);
 
-    // Materiales diferenciados: pared de pizarra estratificada y cantos rodados de río
-    const cliffWallMat = new THREE.MeshStandardMaterial({
-      map: this.textures.rockSlate,
-      bumpMap: this.textures.rockSlate,
-      bumpScale: 0.11,
-      roughness: 0.78,
-      metalness: 0.04
+    // Basalto volcánico húmedo asimétrico para el macizo, escalones mojados y cantos rodados de río
+    const basaltCliffMat = new THREE.MeshStandardMaterial({
+      map: this.textures.rockBasaltWet,
+      bumpMap: this.textures.rockBasaltWet,
+      bumpScale: 0.14,
+      roughness: 0.72,
+      metalness: 0.05
     });
-    enhanceRockMaterialWithShader(cliffWallMat, {
+    enhanceRockMaterialWithShader(basaltCliffMat, {
       mossTex: this.textures.mossVelvet,
-      altRockTex: this.textures.rockMossy,
-      rockScale: 0.22,
-      mossStrength: 0.92,
-      wetWaterlineY: 2.0
+      altRockTex: this.textures.rockSlate,
+      rockScale: 0.25,
+      mossStrength: 0.72,
+      wetWaterlineY: 2.1
+    });
+
+    const wetStepMat = new THREE.MeshStandardMaterial({
+      map: this.textures.rockBasaltWet,
+      bumpMap: this.textures.rockBasaltWet,
+      bumpScale: 0.13,
+      roughness: 0.48,
+      metalness: 0.06
+    });
+    enhanceRockMaterialWithShader(wetStepMat, {
+      mossTex: this.textures.mossVelvet,
+      altRockTex: this.textures.rockRiverstone,
+      rockScale: 0.28,
+      mossStrength: 0.34,
+      wetWaterlineY: 6.2
     });
 
     const riverBoulderMat = new THREE.MeshStandardMaterial({
       map: this.textures.rockRiverstone,
       bumpMap: this.textures.rockRiverstone,
-      bumpScale: 0.085,
-      roughness: 0.62,
+      bumpScale: 0.09,
+      roughness: 0.56,
       metalness: 0.05
     });
     enhanceRockMaterialWithShader(riverBoulderMat, {
       mossTex: this.textures.mossVelvet,
-      altRockTex: this.textures.rockSlate,
-      rockScale: 0.34,
-      mossStrength: 0.88,
-      wetWaterlineY: 2.15
+      altRockTex: this.textures.rockBasaltWet,
+      rockScale: 0.36,
+      mossStrength: 0.65,
+      wetWaterlineY: 2.35
     });
 
-    // Grupo anfiteatro de la cascada orientado directamente hacia el puente de la Estación 4
+    // Garganta asimétrica de Mindo orientada hacia el puente de la Estación 4
     const waterfallGroup = new THREE.Group();
     waterfallGroup.position.set(25.2, 0.0, -17.6);
     waterfallGroup.rotation.y = -0.76;
     this.scene.add(waterfallGroup);
 
-    // Terrazas geológicas horizontales en dos niveles (ancho > alto, sin conos ni picos)
-    const terraceLayout = [
-      // Gruta oscura tras la caída inferior
-      { x: 0.0, y: 2.35, z: -2.55, w: 15.2, h: 4.1, d: 3.9, ry: 0.0, seed: 11, isLedge: false, arcCurve: 2.2 },
-      // Gran cornisa horizontal intermedia (saliente sobre la poza con manto de musgo)
-      { x: 0.15, y: 4.38, z: -1.45, w: 14.6, h: 1.45, d: 3.8, ry: 0.02, seed: 23, isLedge: true, arcCurve: 1.8 },
-      // Brazo izquierdo escalonado del cañón
-      { x: -7.9, y: 2.65, z: 0.25, w: 7.4, h: 3.5, d: 3.9, ry: 0.44, seed: 31, isLedge: false, arcCurve: 0.4 },
-      { x: -8.6, y: 5.25, z: -1.1, w: 7.8, h: 2.2, d: 4.1, ry: 0.38, seed: 41, isLedge: true, arcCurve: 0.5 },
-      { x: -9.6, y: 7.35, z: -2.9, w: 7.6, h: 2.6, d: 4.4, ry: 0.32, seed: 47, isLedge: true, arcCurve: 0.6 },
-      // Brazo derecho escalonado del cañón
-      { x: 8.1, y: 2.7, z: 0.35, w: 7.2, h: 3.5, d: 3.9, ry: -0.46, seed: 53, isLedge: false, arcCurve: 0.4 },
-      { x: 8.8, y: 5.3, z: -0.95, w: 7.6, h: 2.2, d: 4.1, ry: -0.40, seed: 61, isLedge: true, arcCurve: 0.5 },
-      { x: 9.8, y: 7.35, z: -2.75, w: 7.4, h: 2.6, d: 4.4, ry: -0.34, seed: 67, isLedge: true, arcCurve: 0.6 },
-      // Segundo nivel superior del anfiteatro y cresta de nacimiento
-      { x: -0.3, y: 6.15, z: -3.95, w: 15.6, h: 2.5, d: 3.8, ry: -0.02, seed: 73, isLedge: false, arcCurve: 2.1 },
-      { x: -0.7, y: 7.85, z: -3.75, w: 12.2, h: 1.45, d: 3.3, ry: 0.04, seed: 83, isLedge: true, arcCurve: 1.5 },
-      // Macizo superior trasero fundido suavemente con la ladera del valle
-      { x: 0.0, y: 9.0, z: -6.5, w: 17.8, h: 3.8, d: 4.6, ry: 0.0, seed: 97, isLedge: false, arcCurve: 2.4 }
+    // Bloques basálticos escalonados asimétricos (pareja muro derecho escarpado + ladera izq. musgosa + escalones centrales)
+    const outcropLayout = [
+      // Escalones centrales oscuros tras y entre los velos de agua blanca
+      { x: 0.1, y: 1.75, z: -1.1, w: 8.4, h: 2.8, d: 3.4, ry: 0.04, seed: 11, isLedge: false, arcCurve: 0.9, wet: true },
+      { x: -1.15, y: 3.65, z: -0.75, w: 4.8, h: 1.9, d: 2.8, ry: 0.16, seed: 19, isLedge: true, arcCurve: 0.2, wet: true },
+      { x: 1.55, y: 3.35, z: -0.55, w: 4.6, h: 1.8, d: 2.7, ry: -0.18, seed: 29, isLedge: true, arcCurve: 0.2, wet: true },
+      { x: 0.2, y: 5.35, z: -1.95, w: 7.8, h: 2.1, d: 3.2, ry: -0.05, seed: 37, isLedge: true, arcCurve: 0.6, wet: true },
+      { x: -0.25, y: 7.55, z: -3.55, w: 7.4, h: 2.3, d: 3.2, ry: 0.05, seed: 43, isLedge: true, arcCurve: 0.5, wet: true },
+
+      // Fuerte muralla derecha basáltica fracturada (escala alta vertical escalonada)
+      { x: 5.4, y: 2.6, z: 0.1, w: 5.4, h: 4.2, d: 3.8, ry: -0.42, seed: 53, isLedge: false, arcCurve: 0.3, wet: false },
+      { x: 6.1, y: 5.3, z: -1.1, w: 5.8, h: 3.4, d: 4.0, ry: -0.34, seed: 61, isLedge: true, arcCurve: 0.4, wet: false },
+      { x: 7.4, y: 7.7, z: -2.4, w: 6.2, h: 3.2, d: 4.2, ry: -0.28, seed: 67, isLedge: false, arcCurve: 0.4, wet: false },
+      { x: 9.2, y: 4.2, z: 1.9, w: 5.2, h: 5.0, d: 3.8, ry: -0.62, seed: 71, isLedge: false, arcCurve: 0.2, wet: false },
+
+      // Ladera izquierda escalonada húmeda con terrazas de helechos
+      { x: -5.2, y: 2.35, z: -0.2, w: 5.8, h: 3.4, d: 3.8, ry: 0.36, seed: 79, isLedge: false, arcCurve: 0.4, wet: false },
+      { x: -6.3, y: 4.65, z: -1.4, w: 6.2, h: 2.4, d: 4.0, ry: 0.32, seed: 83, isLedge: true, arcCurve: 0.5, wet: false },
+      { x: -8.1, y: 6.65, z: -2.9, w: 6.8, h: 2.8, d: 4.2, ry: 0.26, seed: 89, isLedge: true, arcCurve: 0.5, wet: false },
+      { x: -9.4, y: 3.1, z: 1.8, w: 5.6, h: 3.6, d: 3.8, ry: 0.56, seed: 97, isLedge: false, arcCurve: 0.2, wet: false },
+
+      // Contrafuertes de cierre trasero en la garganta alta bajo el bosque
+      { x: -3.4, y: 8.6, z: -5.4, w: 7.8, h: 3.6, d: 4.2, ry: 0.15, seed: 101, isLedge: false, arcCurve: 0.6, wet: false },
+      { x: 3.4, y: 8.85, z: -5.2, w: 8.0, h: 3.8, d: 4.2, ry: -0.15, seed: 109, isLedge: false, arcCurve: 0.6, wet: false }
     ];
 
-    terraceLayout.forEach((t) => {
-      const geo = this.createLayeredCliffTerraceGeometry(t.w, t.h, t.d, t.seed, {
-        isLedge: t.isLedge,
-        arcCurve: t.arcCurve
+    outcropLayout.forEach((c) => {
+      const geo = this.createLayeredCliffTerraceGeometry(c.w, c.h, c.d, c.seed, {
+        isLedge: c.isLedge,
+        arcCurve: c.arcCurve
       });
-      const mesh = new THREE.Mesh(geo, cliffWallMat);
-      mesh.position.set(t.x, t.y, t.z);
-      mesh.rotation.y = t.ry;
+      const mesh = new THREE.Mesh(geo, c.wet ? wetStepMat : basaltCliffMat);
+      mesh.position.set(c.x, c.y, c.z);
+      mesh.rotation.y = c.ry;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       waterfallGroup.add(mesh);
     });
 
-    // Pequeña poza intermedia sobre la repisa media donde convergen los dos chorros altos
+    // Pequeña poza de rebose en el escalón alto-medio donde rompe la caída principal
     const midShelfPoolMat = createRiverShaderMaterial(
       this.uTime,
       this.textures.waterFoam,
@@ -1255,31 +1244,35 @@ export class TrailScene {
       this.fogDensity,
       true
     );
-    const midShelfPool = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 3.0, 12, 10), midShelfPoolMat);
+    const midShelfPool = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 2.2, 10, 8), midShelfPoolMat);
     midShelfPool.rotation.x = -Math.PI / 2;
-    midShelfPool.position.set(-0.35, 5.13, -0.5);
+    midShelfPool.position.set(0.15, 6.28, -2.0);
     waterfallGroup.add(midShelfPool);
 
-    // Cantos rodados húmedos de río redondeados rodeando la poza y repisas (cero figuras picudas)
+    // Cantos rodados oscuros mojados alrededor de la poza y desagüe del río
     const boulderLayout = [
       // Orilla izquierda de la poza
-      { x: -4.4, y: 1.05, z: 2.5, sx: 1.55, sy: 0.78, sz: 1.35, ry: 0.4, seed: 103 },
-      { x: -3.2, y: 0.96, z: 4.2, sx: 1.25, sy: 0.62, sz: 1.15, ry: 1.2, seed: 113 },
-      { x: -5.4, y: 1.25, z: 1.0, sx: 1.75, sy: 0.92, sz: 1.55, ry: -0.5, seed: 127 },
-      { x: -2.0, y: 0.84, z: 5.4, sx: 1.05, sy: 0.46, sz: 0.92, ry: 2.1, seed: 137 },
-      // Orilla derecha de la poza
-      { x: 4.5, y: 1.08, z: 2.4, sx: 1.62, sy: 0.82, sz: 1.42, ry: -0.7, seed: 149 },
-      { x: 3.4, y: 0.95, z: 4.1, sx: 1.28, sy: 0.64, sz: 1.18, ry: 0.8, seed: 157 },
-      { x: 5.6, y: 1.28, z: 0.9, sx: 1.82, sy: 0.96, sz: 1.58, ry: 1.4, seed: 167 },
-      { x: 2.3, y: 0.86, z: 5.3, sx: 1.1, sy: 0.48, sz: 0.95, ry: -1.1, seed: 179 },
-      // Bloques húmedos al pie de la gruta flanqueando la caída inferior
-      { x: -2.35, y: 1.32, z: 0.5, sx: 1.45, sy: 0.88, sz: 1.25, ry: 0.25, seed: 191 },
-      { x: 2.75, y: 1.35, z: 0.55, sx: 1.5, sy: 0.9, sz: 1.28, ry: -0.35, seed: 199 },
-      // Cantos musgosos asentados en las terrazas izquierda y derecha
-      { x: -4.8, y: 4.95, z: -0.6, sx: 1.35, sy: 0.65, sz: 1.1, ry: 0.6, seed: 211 },
-      { x: 4.6, y: 4.98, z: -0.5, sx: 1.4, sy: 0.68, sz: 1.15, ry: -0.8, seed: 223 },
-      { x: -6.4, y: 3.4, z: 2.2, sx: 1.45, sy: 0.8, sz: 1.3, ry: 1.1, seed: 229 },
-      { x: 6.5, y: 3.45, z: 2.1, sx: 1.42, sy: 0.78, sz: 1.28, ry: -1.3, seed: 239 }
+      { x: -4.4, y: 1.05, z: 2.4, sx: 1.55, sy: 0.78, sz: 1.35, ry: 0.4, seed: 103 },
+      { x: -3.2, y: 0.94, z: 4.2, sx: 1.25, sy: 0.6, sz: 1.15, ry: 1.2, seed: 113 },
+      { x: -5.5, y: 1.25, z: 0.9, sx: 1.75, sy: 0.9, sz: 1.55, ry: -0.5, seed: 127 },
+      { x: -2.0, y: 0.84, z: 5.5, sx: 1.0, sy: 0.45, sz: 0.88, ry: 2.1, seed: 137 },
+      // Orilla derecha y salida pedregosa de la corriente hacia el frente
+      { x: 4.4, y: 1.08, z: 2.3, sx: 1.62, sy: 0.82, sz: 1.42, ry: -0.7, seed: 149 },
+      { x: 3.3, y: 0.94, z: 4.0, sx: 1.25, sy: 0.62, sz: 1.14, ry: 0.8, seed: 157 },
+      { x: 5.5, y: 1.26, z: 0.9, sx: 1.8, sy: 0.94, sz: 1.54, ry: 1.4, seed: 167 },
+      { x: 2.2, y: 0.88, z: 5.2, sx: 1.1, sy: 0.48, sz: 0.95, ry: -1.1, seed: 179 },
+      { x: 4.2, y: 0.86, z: 5.8, sx: 1.18, sy: 0.52, sz: 1.04, ry: 0.5, seed: 181 },
+      { x: 1.5, y: 0.82, z: 6.4, sx: 0.88, sy: 0.38, sz: 0.8, ry: -0.9, seed: 187 },
+      { x: 3.0, y: 0.84, z: 6.7, sx: 0.96, sy: 0.42, sz: 0.86, ry: 1.7, seed: 193 },
+      // Bloques basálticos al pie de la caída donde rompe la espuma
+      { x: -2.15, y: 1.28, z: 0.4, sx: 1.38, sy: 0.82, sz: 1.2, ry: 0.25, seed: 191 },
+      { x: 2.55, y: 1.32, z: 0.5, sx: 1.44, sy: 0.86, sz: 1.24, ry: -0.35, seed: 199 },
+      { x: -0.1, y: 1.18, z: 0.15, sx: 1.15, sy: 0.54, sz: 0.95, ry: 0.7, seed: 205 },
+      // Rocas asentadas en los escalones altos
+      { x: -4.2, y: 5.55, z: -1.1, sx: 1.28, sy: 0.62, sz: 1.05, ry: 0.6, seed: 211 },
+      { x: 4.3, y: 5.65, z: -0.9, sx: 1.32, sy: 0.64, sz: 1.1, ry: -0.8, seed: 223 },
+      { x: -6.2, y: 3.35, z: 2.1, sx: 1.4, sy: 0.75, sz: 1.25, ry: 1.1, seed: 229 },
+      { x: 6.3, y: 3.4, z: 2.0, sx: 1.38, sy: 0.74, sz: 1.22, ry: -1.3, seed: 239 }
     ];
 
     boulderLayout.forEach((b) => {
@@ -1293,7 +1286,7 @@ export class TrailScene {
       waterfallGroup.add(boulder);
     });
 
-    // Cortinas de agua en dos niveles con Shader GLSL trenzado y espuma aerada
+    // Cascada blanca espumosa en 3 saltos escalonados sobre roca húmeda oscura
     const wfShaderMat = createWaterfallShaderMaterial(
       this.uTime,
       this.textures.waterFoam,
@@ -1301,25 +1294,66 @@ export class TrailScene {
       this.fogDensity
     );
 
-    // Nivel superior (dos velos paralelos descendiendo a la poza intermedia)
-    const upperLeftWf = new THREE.Mesh(this.createCurvedWaterfallGeometry(2.1, 3.55), wfShaderMat);
-    upperLeftWf.position.set(-2.05, 6.72, -1.75);
-    waterfallGroup.add(upperLeftWf);
+    // 1er salto superior desde la grieta alta al escalón intermedio
+    const upperChute = new THREE.Mesh(this.createCurvedWaterfallGeometry(2.15, 2.75), wfShaderMat);
+    upperChute.position.set(0.05, 7.25, -2.15);
+    waterfallGroup.add(upperChute);
 
-    const upperRightWf = new THREE.Mesh(this.createCurvedWaterfallGeometry(2.5, 3.65), wfShaderMat);
-    upperRightWf.position.set(0.15, 6.72, -1.65);
-    waterfallGroup.add(upperRightWf);
+    // 2do salto partido sobre dos escalones basálticos intermedios
+    const midLeftStep = new THREE.Mesh(this.createCurvedWaterfallGeometry(2.25, 2.85), wfShaderMat);
+    midLeftStep.position.set(-0.68, 4.92, -0.55);
+    waterfallGroup.add(midLeftStep);
 
-    // Nivel inferior principal + velo exterior luminoso hacia la poza central
-    const lowerMainWf = new THREE.Mesh(this.createCurvedWaterfallGeometry(3.25, 4.15), wfShaderMat);
-    lowerMainWf.position.set(0.35, 3.08, 0.95);
+    const midRightStep = new THREE.Mesh(this.createCurvedWaterfallGeometry(2.55, 2.95), wfShaderMat);
+    midRightStep.position.set(0.95, 4.82, -0.35);
+    waterfallGroup.add(midRightStep);
+
+    // 3er salto inferior ancho y espumoso derramándose hasta la poza
+    const lowerMainWf = new THREE.Mesh(this.createCurvedWaterfallGeometry(3.65, 3.25), wfShaderMat);
+    lowerMainWf.position.set(0.25, 2.65, 0.92);
     waterfallGroup.add(lowerMainWf);
 
-    const lowerVeilWf = new THREE.Mesh(this.createCurvedWaterfallGeometry(3.85, 3.95), wfShaderMat);
-    lowerVeilWf.position.set(0.35, 2.98, 1.14);
+    const lowerVeilWf = new THREE.Mesh(this.createCurvedWaterfallGeometry(4.25, 3.05), wfShaderMat);
+    lowerVeilWf.position.set(0.25, 2.52, 1.16);
     waterfallGroup.add(lowerVeilWf);
 
-    // Vegetación natural de garganta húmeda: helechos en repisas y dos helechos arborescentes flanqueando
+    // Dosel del bosque nublado coronando la garganta alta y helechos húmedos de risco
+    let gSeed = 313;
+    const gRand = () => {
+      gSeed = (gSeed * 1664525 + 1013904223) % 4294967296;
+      return gSeed / 4294967296;
+    };
+
+    const rimFloraSpecs = [
+      { preset: 'oakCloud', x: -5.4, y: 8.6, z: -5.6, s: 0.95, seed: 911 },
+      { preset: 'ashAndean', x: 0.4, y: 9.2, z: -7.2, s: 1.05, seed: 929 },
+      { preset: 'polylepis', x: 5.8, y: 8.9, z: -5.4, s: 0.92, seed: 947 },
+      { preset: 'shrubOak', x: -3.2, y: 8.2, z: -3.8, s: 1.25, seed: 967 },
+      { preset: 'shrubAsh', x: 3.1, y: 8.3, z: -3.5, s: 1.22, seed: 977 },
+      { preset: 'shrubOak', x: -6.8, y: 5.65, z: -1.2, s: 1.15, seed: 991 }
+    ];
+    rimFloraSpecs.forEach((spec) => {
+      const tData = buildProceduralTreeGeometries(spec.preset, spec.seed);
+      const bMat = this.treeMaterials.bark[tData.options.bark.type] || this.treeMaterials.bark.oak;
+      const lMat = this.treeMaterials.leaves[tData.options.leaves.type] || this.treeMaterials.leaves.broadleaf;
+      const dMat = this.treeMaterials.leafDepth[tData.options.leaves.type] || this.treeMaterials.leafDepth.broadleaf;
+
+      const floraObj = new THREE.Group();
+      floraObj.position.set(spec.x, spec.y, spec.z);
+      floraObj.scale.setScalar(spec.s);
+      floraObj.rotation.y = gRand() * Math.PI * 2;
+
+      const brMesh = new THREE.Mesh(tData.branchGeo, bMat);
+      brMesh.castShadow = true;
+      brMesh.receiveShadow = true;
+      const lfMesh = new THREE.Mesh(tData.leafGeo, lMat);
+      lfMesh.castShadow = true;
+      lfMesh.receiveShadow = true;
+      lfMesh.customDepthMaterial = dMat;
+      floraObj.add(brMesh, lfMesh);
+      waterfallGroup.add(floraObj);
+    });
+
     const gorgeFernMat = new THREE.MeshStandardMaterial({
       map: this.textures.fernFrond,
       alphaTest: 0.34,
@@ -1329,25 +1363,21 @@ export class TrailScene {
     });
     enhanceFoliageWithWindShader(gorgeFernMat, this.uTime);
     const shelfFrondGeo = this.createCurvedFrondGeometry(0.95, 0.4, 0.42, 0.5);
-    const framingFrondGeo = this.createCurvedFrondGeometry(1.85, 0.74, 0.34, 0.56);
-
-    let gSeed = 313;
-    const gRand = () => {
-      gSeed = (gSeed * 1664525 + 1013904223) % 4294967296;
-      return gSeed / 4294967296;
-    };
+    const framingFrondGeo = this.createCurvedFrondGeometry(1.9, 0.76, 0.34, 0.56);
 
     const shelfFernSpots = [
-      [-4.1, 5.02, -0.2, 1.05],
-      [4.2, 5.05, -0.1, 1.05],
-      [-5.9, 5.85, -1.1, 1.15],
-      [6.1, 5.9, -1.0, 1.15],
-      [-3.8, 8.2, -3.1, 1.0],
-      [3.5, 8.25, -3.0, 1.0],
-      [-6.8, 2.15, 2.5, 1.2],
-      [7.0, 2.2, 2.4, 1.2],
-      [-5.1, 1.75, 4.1, 0.95],
-      [5.3, 1.8, 3.9, 0.95]
+      [-4.1, 5.5, -0.3, 1.15],
+      [4.2, 5.65, -0.1, 1.08],
+      [-5.6, 5.8, -1.2, 1.2],
+      [5.9, 6.8, -1.1, 1.15],
+      [-2.8, 8.35, -3.1, 1.05],
+      [2.8, 8.45, -2.9, 1.05],
+      [-6.5, 2.25, 2.4, 1.25],
+      [6.8, 2.3, 2.2, 1.2],
+      [-4.9, 1.78, 4.0, 1.02],
+      [5.1, 1.82, 3.8, 1.0],
+      [-7.4, 3.8, 0.6, 1.2],
+      [7.6, 4.1, 0.5, 1.1]
     ];
     shelfFernSpots.forEach(([fx, fy, fz, fs]) => {
       const clump = this.createGroundFernClump(fs, gorgeFernMat, shelfFrondGeo, gRand);
@@ -1357,8 +1387,9 @@ export class TrailScene {
     });
 
     const framingTreeFerns = [
-      [-8.7, 2.1, 3.4, 1.15, 0.5],
-      [8.8, 2.15, 3.2, 1.18, -0.6]
+      [-6.8, 2.2, 3.1, 1.22, 0.45],
+      [-8.6, 5.4, -1.2, 1.05, 0.8],
+      [8.6, 2.25, 3.0, 1.15, -0.6]
     ];
     framingTreeFerns.forEach(([tx, ty, tz, ts, ry]) => {
       const tf = this.createMountainTreeFern(ts, this.treeMaterials.bark.oak, gorgeFernMat, framingFrondGeo, gRand);
@@ -1367,17 +1398,17 @@ export class TrailScene {
       waterfallGroup.add(tf);
     });
 
-    // Bruma suave en ambos saltos de agua (poza principal + repisa media)
-    const mistCount = 150;
+    // Bruma blanca neutra ascendente en poza y salto medio
+    const mistCount = 165;
     const mistPos = new Float32Array(mistCount * 3);
     for (let i = 0; i < mistCount; i++) {
-      if (i < 110) {
+      if (i < 120) {
         mistPos[i * 3] = 23.6 + (Math.random() - 0.5) * 5.8;
-        mistPos[i * 3 + 1] = 1.15 + Math.random() * 2.8;
+        mistPos[i * 3 + 1] = 1.15 + Math.random() * 2.6;
         mistPos[i * 3 + 2] = -15.8 + (Math.random() - 0.5) * 5.2;
       } else {
-        mistPos[i * 3] = 24.8 + (Math.random() - 0.5) * 4.4;
-        mistPos[i * 3 + 1] = 5.05 + Math.random() * 1.8;
+        mistPos[i * 3] = 24.8 + (Math.random() - 0.5) * 4.2;
+        mistPos[i * 3 + 1] = 5.1 + Math.random() * 2.1;
         mistPos[i * 3 + 2] = -17.9 + (Math.random() - 0.5) * 3.6;
       }
     }
@@ -1385,8 +1416,8 @@ export class TrailScene {
     mistGeo.setAttribute('position', new THREE.BufferAttribute(mistPos, 3));
     const mistMat = new THREE.PointsMaterial({
       map: this.textures.softParticle,
-      color: 0xeefbff,
-      size: 1.4,
+      color: 0xf4f8f7,
+      size: 1.45,
       transparent: true,
       opacity: 0.34,
       depthWrite: false

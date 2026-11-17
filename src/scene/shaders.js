@@ -207,39 +207,42 @@ export function createWaterfallShaderMaterial(timeUniform, waterTexture, fogColo
       ${NOISE_GLSL}
 
       void main() {
-        // Dos capas verticales de flujo descendente en filamentos trenzados
-        vec2 uvFast = vec2(vUv.x * 1.9, vUv.y * 2.5 + uTime * 1.25);
-        vec2 uvSlow = vec2(vUv.x * 2.8 + 0.22, vUv.y * 1.6 + uTime * 0.78);
+        // Muestreo dual de espuma blanca real a dos velocidades y escalas
+        vec2 uvFast = vec2(vUv.x * 1.35, vUv.y * 1.45 + uTime * 1.35);
+        vec2 uvSlow = vec2(vUv.x * 2.05 + 0.31, vUv.y * 1.05 + uTime * 0.82);
         vec3 texFast = texture2D(uWaterTex, uvFast).rgb;
         vec3 texSlow = texture2D(uWaterTex, uvSlow).rgb;
 
-        float filament = fbm(vec2(vUv.x * 13.0, vUv.y * 2.2 + uTime * 1.6));
-        float streakNoise = fbm(vec2(vUv.x * 8.5 + 1.4, vUv.y * 3.8 + uTime * 2.1));
-        float edgePerturb = (valueNoise(vec2(vUv.y * 6.5 + uTime * 0.9, vUv.x * 4.5)) - 0.5) * 0.14;
+        float lumaFast = dot(texFast, vec3(0.30, 0.59, 0.11));
+        float lumaSlow = dot(texSlow, vec3(0.30, 0.59, 0.11));
+        float streamLace = clamp(lumaFast * 0.68 + lumaSlow * 0.52 - 0.18, 0.0, 1.0);
 
-        // Difuminado suave lateral, superior e inferior dejando entrever la roca oscura detrás
-        float sideFade = smoothstep(0.03, 0.25, vUv.x + edgePerturb) *
-                         smoothstep(0.97, 0.75, vUv.x + edgePerturb);
-        float topFade = smoothstep(1.0, 0.89, vUv.y);
-        float bottomFade = smoothstep(0.0, 0.11, vUv.y);
-        float ribbonDensity = smoothstep(0.18, 0.72, filament * 0.7 + sideFade * 0.55);
+        float macroSplit = fbm(vec2(vUv.x * 7.5 + 1.1, vUv.y * 2.4 + uTime * 1.1));
+        float edgePerturb = (valueNoise(vec2(vUv.y * 6.5 + uTime * 0.85, vUv.x * 5.0)) - 0.5) * 0.16;
 
-        // Espuma blanca intensa en el labio de caída, estrías aéreas y choque en la poza
-        float crestFoam = smoothstep(0.78, 0.96, vUv.y) * 0.62;
-        float splashFoam = smoothstep(0.34, 0.03, vUv.y) * 0.9;
-        float streakFoam = smoothstep(0.50, 0.84, streakNoise) * 0.72;
-        float foamIntensity = clamp(crestFoam + splashFoam + streakFoam, 0.0, 1.0);
+        // Difuminado lateral orgánico que deja ver la piedra negra húmeda detrás
+        float sideFade = smoothstep(0.03, 0.23, vUv.x + edgePerturb) *
+                         smoothstep(0.97, 0.77, vUv.x + edgePerturb);
+        float topFade = smoothstep(1.0, 0.88, vUv.y);
+        float bottomFade = smoothstep(0.0, 0.10, vUv.y);
 
-        vec3 deepWater = vec3(0.13, 0.50, 0.59);
-        vec3 midWater = mix(texSlow, texFast, 0.55);
-        vec3 waterCol = mix(deepWater, midWater, 0.62);
-        waterCol = mix(waterCol, vec3(0.93, 0.99, 1.0), foamIntensity);
+        float crestFoam = smoothstep(0.76, 0.96, vUv.y) * 0.45;
+        float splashFoam = smoothstep(0.34, 0.02, vUv.y) * 0.78;
+        float aerated = clamp(streamLace * 0.88 + crestFoam + splashFoam + macroSplit * 0.25, 0.0, 1.0);
+
+        // Tonos reales de agua de montaña andina (sin cian artificial)
+        vec3 deepWater = vec3(0.11, 0.21, 0.20);
+        vec3 mistWater = vec3(0.45, 0.54, 0.54);
+        vec3 whiteFoam = vec3(0.95, 0.97, 0.97);
+        vec3 waterCol = mix(deepWater, mistWater, smoothstep(0.18, 0.55, aerated));
+        waterCol = mix(waterCol, whiteFoam, smoothstep(0.42, 0.86, aerated));
 
         float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * vFogDepth * vFogDepth);
         waterCol = mix(waterCol, uFogColor, clamp(fogFactor, 0.0, 1.0));
 
-        float alpha = sideFade * topFade * bottomFade * ribbonDensity * (0.58 + foamIntensity * 0.36);
-        if (alpha < 0.02) discard;
+        float bodyAlpha = smoothstep(0.12, 0.74, streamLace * 0.78 + macroSplit * 0.42);
+        float alpha = sideFade * topFade * bottomFade * clamp(bodyAlpha * 0.82 + aerated * 0.42, 0.0, 0.95);
+        if (alpha < 0.03) discard;
         gl_FragColor = vec4(waterCol, alpha);
       }
     `
@@ -291,34 +294,38 @@ export function createRiverShaderMaterial(timeUniform, waterTexture, fogColor, f
       ${NOISE_GLSL}
 
       void main() {
-        vec2 flowUv1 = vUv * vec2(2.0, 6.0) + vec2(0.0, -uTime * 0.42);
-        vec2 flowUv2 = vUv * vec2(3.2, 4.5) + vec2(0.15, -uTime * 0.28);
+        vec2 flowUv1 = vUv * vec2(1.8, 5.2) + vec2(0.0, -uTime * 0.42);
+        vec2 flowUv2 = vUv * vec2(2.8, 3.8) + vec2(0.19, -uTime * 0.27);
         vec3 t1 = texture2D(uWaterTex, flowUv1).rgb;
         vec3 t2 = texture2D(uWaterTex, flowUv2).rgb;
+        float surfaceLace = smoothstep(0.45, 0.86, dot(t1 * 0.6 + t2 * 0.4, vec3(0.33)));
 
-        float ripple = fbm(vWorldPos.xz * 0.85 + vec2(-uTime * 0.35, uTime * 0.35));
-        float caustics = smoothstep(0.58, 0.86, ripple);
+        float ripple = fbm(vWorldPos.xz * 0.95 + vec2(-uTime * 0.35, uTime * 0.32));
+        float caustics = smoothstep(0.54, 0.85, ripple);
 
-        // Fresnel de reflexión del cielo brumoso
+        // Fresnel de reflexión difusa del dosel nublado
         vec3 viewDir = normalize(cameraPosition - vWorldPos);
         float fresnel = pow(1.0 - max(dot(viewDir, vec3(0.0, 1.0, 0.0)), 0.0), 3.0);
 
-        vec3 baseCol = mix(vec3(0.12, 0.44, 0.49), mix(t1, t2, 0.5), 0.48);
-        baseCol += vec3(0.32, 0.56, 0.58) * caustics * 0.42;
-        baseCol = mix(baseCol, vec3(0.80, 0.91, 0.89), fresnel * 0.58);
+        // Agua natural verde-oliva y pizarra oscura de quebrada andina
+        vec3 deepBed = vec3(0.08, 0.17, 0.15);
+        vec3 shallowTint = vec3(0.16, 0.28, 0.25);
+        vec3 baseCol = mix(deepBed, shallowTint, ripple * 0.72 + surfaceLace * 0.22);
+        baseCol = mix(baseCol, vec3(0.68, 0.77, 0.74), fresnel * 0.56);
 
-        float alpha = 0.84;
+        float alpha = 0.89;
         if (uIsPool > 0.5) {
           float distCenter = length(vUv - vec2(0.5));
-          float ringWave = sin(distCenter * 28.0 - uTime * 4.5) * 0.5 + 0.5;
-          float splashFoam = smoothstep(0.28, 0.04, distCenter) * 0.65 +
-                             smoothstep(0.38, 0.14, distCenter) * ringWave * 0.32;
-          baseCol = mix(baseCol, vec3(0.93, 0.99, 1.0), clamp(splashFoam, 0.0, 1.0));
-          alpha *= smoothstep(0.5, 0.36, distCenter);
+          float ringWave = sin(distCenter * 26.0 - uTime * 4.2) * 0.5 + 0.5;
+          float coreChurn = smoothstep(0.26, 0.03, distCenter);
+          float rippleLace = smoothstep(0.39, 0.12, distCenter) * (ringWave * 0.42 + surfaceLace * 0.75);
+          float splashFoam = clamp(coreChurn * (0.62 + surfaceLace * 0.38) + rippleLace * 0.55, 0.0, 1.0);
+          baseCol = mix(baseCol, vec3(0.93, 0.96, 0.96), splashFoam);
+          alpha *= smoothstep(0.5, 0.35, distCenter);
         } else {
           float edgeFade = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.82, vUv.x);
-          float bankFoam = (1.0 - smoothstep(0.06, 0.24, min(vUv.x, 1.0 - vUv.x))) * caustics * 0.45;
-          baseCol = mix(baseCol, vec3(0.90, 0.98, 0.99), bankFoam);
+          float riffleFoam = clamp(surfaceLace * (0.38 + caustics * 0.52), 0.0, 0.82);
+          baseCol = mix(baseCol, vec3(0.91, 0.95, 0.95), riffleFoam);
           alpha *= edgeFade;
         }
 
@@ -483,23 +490,25 @@ export function enhanceRockMaterialWithShader(material, options = {}) {
                : ''
            }
 
-           // Estratificación suave de laja geológica y variación mineral sin franjas duras
+           // Estratificación natural, pátina mineral ocre y chorreaduras húmedas verticales
            float strataWave = sin(vRockWorldPos.y * 4.2 + fbm(vRockWorldPos.xz * 0.32) * 2.8) * 0.5 + 0.5;
            float undercutShade = smoothstep(-0.65, 0.18, wNorm.y);
-           triRock *= mix(0.76, 1.08, strataWave * 0.55 + undercutShade * 0.45);
+           triRock *= mix(0.72, 1.06, strataWave * 0.55 + undercutShade * 0.45);
+           float mineralWarm = smoothstep(0.58, 0.86, fbm(vRockWorldPos * 0.45 + vec3(3.1)));
+           triRock = mix(triRock, triRock * vec3(1.18, 0.96, 0.72), mineralWarm * 0.36);
 
-           // Musgo aterciopelado orgánico sobre repisas superiores y bordes de terraza
-           float topFace = smoothstep(0.24, 0.74, wNorm.y);
-           float lipOverhang = smoothstep(0.58, 0.92, strataWave) * smoothstep(-0.18, 0.34, wNorm.y);
-           float mossSpread = smoothstep(0.26, 0.68, fbm(vRockWorldPos.xz * 0.36 + vec2(vRockWorldPos.y * 0.18)));
-           float aboveSplash = smoothstep(1.22, 1.72, vRockWorldPos.y);
+           // Parches asimétricos de musgo oscuro natural (deja respirar el basalto oscuro detrás del agua)
+           float topFace = smoothstep(0.32, 0.78, wNorm.y);
+           float fissurePocket = smoothstep(0.42, 0.74, fbm(vRockWorldPos.xz * 0.48 + vec2(vRockWorldPos.y * 0.24)));
+           float aboveSplash = smoothstep(1.26, 1.75, vRockWorldPos.y);
+           float centerCascadeClear = smoothstep(1.4, 3.8, length(vRockWorldPos.xz - vec2(24.0, -16.8)));
            rockMossMask = clamp(
-             (topFace * mossSpread + lipOverhang * mossSpread * 0.45) * aboveSplash * uMossStrength,
+             topFace * fissurePocket * aboveSplash * mix(0.28, 1.0, centerCascadeClear) * uMossStrength,
              0.0,
-             0.90
+             0.84
            );
 
-           vec3 mossCol = mix(vec3(0.17, 0.35, 0.13), vec3(0.30, 0.48, 0.18), mossSpread);
+           vec3 mossCol = mix(vec3(0.11, 0.22, 0.09), vec3(0.19, 0.31, 0.12), fissurePocket);
            ${
              mossTex
                ? `
@@ -507,10 +516,10 @@ export function enhanceRockMaterialWithShader(material, options = {}) {
                fbm(vRockWorldPos.xz * 0.18),
                fbm(vRockWorldPos.xz * 0.18 + vec2(4.2, -2.7))
              ) * 0.45;
-             vec2 mUvTop = vRockWorldPos.xz * 0.42 + mossWarp;
-             vec2 mUvSide = vec2(vRockWorldPos.x + vRockWorldPos.z, vRockWorldPos.y) * 0.45 + mossWarp;
+             vec2 mUvTop = vRockWorldPos.xz * 0.46 + mossWarp;
+             vec2 mUvSide = vec2(vRockWorldPos.x + vRockWorldPos.z, vRockWorldPos.y) * 0.48 + mossWarp;
              vec3 mTex = mix(texture2D(uMossTex, mUvSide).rgb, texture2D(uMossTex, mUvTop).rgb, clamp(wNorm.y * 1.4, 0.0, 1.0));
-             mossCol = mix(mossCol, mTex * 0.92, 0.84);`
+             mossCol = mix(mossCol, mTex * vec3(0.68, 0.76, 0.58), 0.85);`
                : ''
            }
 
@@ -520,12 +529,14 @@ export function enhanceRockMaterialWithShader(material, options = {}) {
 
            triRock = mix(triRock, mossCol, rockMossMask);
 
-           // Humedad intensa junto a la poza y zona de salpicadura de la cascada
-           float distWf = length(vRockWorldPos.xz - vec2(24.4, -17.2));
-           float splashZone = (1.0 - smoothstep(2.4, 9.2, distWf)) * (1.0 - smoothstep(1.1, 8.8, vRockWorldPos.y));
+           // Escorrentías húmedas verticales y brillo oscuro mojado junto a la cascada y poza
+           float verticalFace = 1.0 - smoothstep(0.15, 0.65, abs(wNorm.y));
+           float weepStreak = smoothstep(0.52, 0.84, fbm(vec2(vRockWorldPos.x * 1.2 + vRockWorldPos.z * 0.8, vRockWorldPos.y * 0.18))) * verticalFace;
+           float distWf = length(vRockWorldPos.xz - vec2(24.2, -16.8));
+           float splashZone = (1.0 - smoothstep(2.2, 8.8, distWf)) * (1.0 - smoothstep(1.0, 9.2, vRockWorldPos.y));
            float shoreWet = 1.0 - smoothstep(1.15, uWetWaterlineY, vRockWorldPos.y);
-           rockWetMask = clamp(max(splashZone * 0.92, shoreWet * 0.88), 0.0, 1.0);
-           triRock *= mix(1.0, 0.52, rockWetMask * (1.0 - rockMossMask * 0.55));
+           rockWetMask = clamp(max(max(splashZone * 0.96, shoreWet * 0.92), weepStreak * 0.72), 0.0, 1.0);
+           triRock *= mix(1.0, 0.42, rockWetMask * (1.0 - rockMossMask * 0.55));
 
            diffuseColor.rgb *= triRock;
          #endif`
@@ -533,7 +544,7 @@ export function enhanceRockMaterialWithShader(material, options = {}) {
       .replace(
         '#include <roughnessmap_fragment>',
         `#include <roughnessmap_fragment>
-         roughnessFactor = mix(roughnessFactor, 0.22, rockWetMask * (1.0 - rockMossMask));
+         roughnessFactor = mix(roughnessFactor, 0.16, rockWetMask * (1.0 - rockMossMask));
          roughnessFactor = mix(roughnessFactor, 0.94, rockMossMask);`
       )
       .replace(
