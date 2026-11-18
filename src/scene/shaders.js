@@ -33,15 +33,15 @@ float fbm(vec2 p) {
 /**
  * Cielo atmosférico con gradiente, brillo solar y nubes FBM en movimiento lento.
  */
-export function createSkyWithCloudsMaterial(timeUniform) {
+export function createSkyWithCloudsMaterial(timeUniform, horizonColor = null) {
   return new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
     uniforms: {
       uTime: timeUniform,
-      uTopColor: { value: new THREE.Color(0x4d878b) },
-      uHorizonColor: { value: new THREE.Color(0xd7e8df) },
-      uSunColor: { value: new THREE.Color(0xfff1cf) },
+      uTopColor: { value: new THREE.Color(0x5eaee8) },
+      uHorizonColor: { value: horizonColor ? horizonColor.clone() : new THREE.Color(0xe4f3f6) },
+      uSunColor: { value: new THREE.Color(0xfff5db) },
       uSunDir: { value: new THREE.Vector3(-45, 58, 36).normalize() }
     },
     vertexShader: `
@@ -65,26 +65,29 @@ export function createSkyWithCloudsMaterial(timeUniform) {
       void main() {
         vec3 dir = normalize(vWorldDir);
         float elev = clamp(dir.y, 0.0, 1.0);
-        vec3 sky = mix(uHorizonColor, uTopColor, pow(elev, 0.62));
+        // Mantener el horizonte emparejado exactamente con fogColor y elevar a azul celeste luminoso
+        vec3 sky = mix(uHorizonColor, uTopColor * 1.24, pow(elev, 0.68));
 
-        // Halo solar cálido
+        // Halo solar cálido de mañana despejada
         float sunDot = max(dot(dir, normalize(uSunDir)), 0.0);
-        sky += uSunColor * pow(sunDot, 10.0) * 0.35;
-        sky += uSunColor * pow(sunDot, 90.0) * 0.45;
+        sky += uSunColor * pow(sunDot, 8.0) * 0.42;
+        sky += uSunColor * pow(sunDot, 72.0) * 0.65;
 
-        // Proyección de capa de nubes en el domo superior
+        // Nubes blancas ligeras de buen tiempo (sin aspecto grisáceo ni de tormenta)
         if (dir.y > 0.03) {
-          vec2 cloudUv = dir.xz / (dir.y + 0.22);
+          vec2 cloudUv = dir.xz / (dir.y + 0.24);
           float drift = uTime * 0.018;
           float n1 = fbm(cloudUv * 1.15 + vec2(drift, drift * 0.35));
           float n2 = fbm(cloudUv * 2.4 - vec2(drift * 0.7, -drift * 0.2));
-          float cloudMask = smoothstep(0.46, 0.78, n1 * 0.7 + n2 * 0.35);
+          float cloudMask = smoothstep(0.50, 0.80, n1 * 0.68 + n2 * 0.34);
           cloudMask *= smoothstep(0.03, 0.22, dir.y);
-          vec3 cloudTint = mix(vec3(0.95, 0.98, 0.97), uSunColor, pow(sunDot, 3.0) * 0.45);
-          sky = mix(sky, cloudTint, cloudMask * 0.62);
+          vec3 cloudTint = mix(vec3(1.18, 1.23, 1.28), uSunColor * 1.38, pow(sunDot, 3.0) * 0.42);
+          sky = mix(sky, cloudTint, cloudMask * 0.56);
         }
 
         gl_FragColor = vec4(sky, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `
   });
@@ -100,8 +103,8 @@ export function createCloudLayerMaterial(timeUniform) {
     side: THREE.DoubleSide,
     uniforms: {
       uTime: timeUniform,
-      uColorLight: { value: new THREE.Color(0xf7fbf9) },
-      uColorShadow: { value: new THREE.Color(0xb8d0ca) }
+      uColorLight: { value: new THREE.Color(0xffffff) },
+      uColorShadow: { value: new THREE.Color(0xdbeaf4) }
     },
     vertexShader: `
       varying vec2 vUv;
@@ -121,10 +124,12 @@ export function createCloudLayerMaterial(timeUniform) {
         vec2 centered = vUv * 2.0 - 1.0;
         float radialFade = 1.0 - smoothstep(0.32, 0.98, length(centered));
         float n = fbm(vUv * 3.4 + vec2(uTime * 0.025, uTime * 0.008));
-        float alpha = smoothstep(0.36, 0.74, n) * radialFade * 0.68;
+        float alpha = smoothstep(0.40, 0.76, n) * radialFade * 0.62;
         if (alpha < 0.01) discard;
-        vec3 col = mix(uColorShadow, uColorLight, smoothstep(0.35, 0.78, n));
+        vec3 col = mix(uColorShadow, uColorLight, smoothstep(0.35, 0.78, n)) * 1.18;
         gl_FragColor = vec4(col, alpha);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `
   });
@@ -133,14 +138,14 @@ export function createCloudLayerMaterial(timeUniform) {
 /**
  * Bancos de neblina de valle que fluyen suavemente entre las laderas y árboles lejanos.
  */
-export function createValleyMistMaterial(timeUniform) {
+export function createValleyMistMaterial(timeUniform, horizonColor = null) {
   return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
     uniforms: {
       uTime: timeUniform,
-      uMistColor: { value: new THREE.Color(0xdcebe4) }
+      uMistColor: { value: horizonColor ? horizonColor.clone() : new THREE.Color(0xe4f3f6) }
     },
     vertexShader: `
       varying vec2 vUv;
@@ -159,9 +164,11 @@ export function createValleyMistMaterial(timeUniform) {
         vec2 centered = vUv * 2.0 - 1.0;
         float edge = 1.0 - smoothstep(0.25, 0.96, length(centered));
         float n = fbm(vUv * 2.6 + vec2(-uTime * 0.03, uTime * 0.015));
-        float alpha = smoothstep(0.38, 0.8, n) * edge * 0.28;
+        float alpha = smoothstep(0.38, 0.8, n) * edge * 0.24;
         if (alpha < 0.01) discard;
         gl_FragColor = vec4(uMistColor, alpha);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `
   });

@@ -389,18 +389,18 @@ export class TrailScene {
 
   initScene() {
     this.scene = new THREE.Scene();
-    this.fogColor = new THREE.Color(0xc5ddd4);
-    this.fogDensity = 0.011;
+    this.fogColor = new THREE.Color(0xe2f2f5);
+    this.fogDensity = 0.0085;
     this.scene.background = this.fogColor.clone();
     this.scene.fog = new THREE.FogExp2(this.fogColor.getHex(), this.fogDensity);
 
     const aspect = this.container.clientWidth / Math.max(1, this.container.clientHeight);
     this.camera = new THREE.PerspectiveCamera(this.getResponsiveFov(aspect), aspect, 0.1, 750);
 
-    const hemiLight = new THREE.HemisphereLight(0xf1f8f5, 0x384b34, 1.02);
+    const hemiLight = new THREE.HemisphereLight(0xf2faff, 0x3f523a, 1.08);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfff0d4, 1.58);
+    const sunLight = new THREE.DirectionalLight(0xfff3d8, 1.62);
     sunLight.position.set(-45, 58, 36);
     sunLight.castShadow = true;
     const shadowRes = window.innerWidth < 768 ? 1024 : 2048;
@@ -416,7 +416,7 @@ export class TrailScene {
     sunLight.shadow.bias = -0.0005;
     this.scene.add(sunLight);
 
-    const fillLight = new THREE.DirectionalLight(0xa3d4c4, 0.44);
+    const fillLight = new THREE.DirectionalLight(0xb2dfeb, 0.46);
     fillLight.position.set(45, 22, -40);
     this.scene.add(fillLight);
 
@@ -424,17 +424,17 @@ export class TrailScene {
     this.buildSkyAndClouds();
   }
 
-  /** Mapa de entorno nublado procedural (PMREM) para dar reflejos húmedos realistas a roca, agua y madera. */
+  /** Mapa de entorno celeste luminoso (PMREM) para dar reflejos húmedos realistas a roca, agua y madera. */
   buildEnvironmentMap() {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 64;
     const ctx = canvas.getContext('2d');
     const grad = ctx.createLinearGradient(0, 0, 0, 64);
-    grad.addColorStop(0.0, '#e3efe9');
-    grad.addColorStop(0.45, '#c4d8cf');
-    grad.addColorStop(0.55, '#4c6551');
-    grad.addColorStop(1.0, '#223326');
+    grad.addColorStop(0.0, '#cfeafa');
+    grad.addColorStop(0.45, '#e8f5f8');
+    grad.addColorStop(0.55, '#526d54');
+    grad.addColorStop(1.0, '#243628');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 128, 64);
 
@@ -444,7 +444,7 @@ export class TrailScene {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     const rt = pmrem.fromEquirectangular(envTex);
     this.scene.environment = rt.texture;
-    this.scene.environmentIntensity = 0.65;
+    this.scene.environmentIntensity = 0.68;
     envTex.dispose();
     pmrem.dispose();
   }
@@ -452,7 +452,7 @@ export class TrailScene {
   buildSkyAndClouds() {
     // Domo celeste amplio centrado siempre en la cámara (elimina cualquier recorte de plano lejano)
     const skyGeo = new THREE.SphereGeometry(420, 48, 32);
-    const skyMat = createSkyWithCloudsMaterial(this.uTime);
+    const skyMat = createSkyWithCloudsMaterial(this.uTime, this.fogColor);
     this.skyMesh = new THREE.Mesh(skyGeo, skyMat);
     this.scene.add(this.skyMesh);
 
@@ -471,7 +471,7 @@ export class TrailScene {
     }
 
     // Neblina baja de valle entre quebrada y laderas
-    const mistMat = createValleyMistMaterial(this.uTime);
+    const mistMat = createValleyMistMaterial(this.uTime, this.fogColor);
     const mistCoords = [
       [20, 3.2, -16, 26],
       [-28, 3.5, -18, 34],
