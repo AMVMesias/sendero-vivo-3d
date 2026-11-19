@@ -647,7 +647,7 @@ export class TrailScene {
     const poolGeo = new THREE.PlaneGeometry(13.2, 13.2, 24, 24);
     poolGeo.rotateX(-Math.PI / 2);
     const pool = new THREE.Mesh(poolGeo, poolMat);
-    pool.position.set(23.9, 1.18, -16.1);
+    pool.position.set(23.95, 1.18, -16.45);
     this.scene.add(pool);
 
     const riverCurve = new THREE.CatmullRomCurve3([
@@ -1020,7 +1020,7 @@ export class TrailScene {
    * y el velo de cascada para garantizar contacto exacto sin enterrar ni separar el agua.
    */
   getCascadeChuteCenterZ(y) {
-    const t = THREE.MathUtils.clamp((y - 1.02) / 7.38, 0.0, 1.0);
+    const t = THREE.MathUtils.clamp((y - 1.0) / 7.05, 0.0, 1.0);
     // Escalones marcados tipo gradería: cada terraza horizontal proyecta el agua hacia afuera antes de caer
     const drop1 = THREE.MathUtils.smoothstep(1.0 - t, 0.24, 0.42) * 1.15;
     const drop2 = THREE.MathUtils.smoothstep(1.0 - t, 0.50, 0.68) * 1.25;
@@ -1033,11 +1033,19 @@ export class TrailScene {
    * y anclar helechos/árboles directamente sobre la superficie real sin flotar ni enterrarse.
    */
   sampleCliffWallPoint(theta, vBody, backRoll = 0) {
-    const rightCliffBoost = THREE.MathUtils.smoothstep(theta, 0.05, 0.95) * 1.65;
-    const centerNotch = 1.25 * Math.exp(-Math.pow(theta / 0.19, 2));
-    const leftSlopeDrop = THREE.MathUtils.smoothstep(-theta, 0.72, 1.38) * 1.1;
-    const craggyRim = Math.sin(theta * 11.0) * 0.52 + Math.cos(theta * 19.0) * 0.28 + Math.sin(theta * 5.0) * 0.42;
-    const crestY = 9.35 + rightCliffBoost - centerNotch - leftSlopeDrop + craggyRim;
+    // Muesca en U del cauce centrada exactamente en theta = 0 (x = 0) para que el agua salga del centro real
+    const notchMask = Math.exp(-Math.pow(theta / 0.155, 2));
+    const cragCalm = Math.exp(-Math.pow(theta / 0.25, 2));
+    const rightCliffBoost = THREE.MathUtils.smoothstep(theta, 0.14, 0.95) * 1.55;
+    const leftCliffShoulder = THREE.MathUtils.smoothstep(-theta, 0.14, 0.45) * 0.55;
+    const centerNotch = 1.48 * notchMask;
+    const leftSlopeDrop = THREE.MathUtils.smoothstep(-theta, 0.72, 1.38) * 1.15;
+    const rawCrags =
+      Math.sin(theta * 11.0) * 0.48 +
+      Math.cos(theta * 19.0) * 0.24 +
+      Math.sin(theta * 5.0) * 0.38;
+    const craggyRim = rawCrags * (1.0 - cragCalm * 0.92);
+    const crestY = 9.45 + rightCliffBoost + leftCliffShoulder - centerNotch - leftSlopeDrop + craggyRim;
 
     let y = 0.15 + Math.pow(vBody, 0.96) * (crestY - 0.15) - backRoll * 0.45;
 
@@ -1139,19 +1147,20 @@ export class TrailScene {
       const xNorm = pos.getX(i); // -0.5 a +0.5
       const t = pos.getY(i) + 0.5; // 0 = base en poza, 1 = entrada superior
 
-      const y = 1.02 + t * 7.38;
-      // Ancho estrecho arriba que se abre en cada escalón basáltico hasta el abanico en la poza
+      const y = 1.0 + t * 7.05;
+      // Ancho estrecho arriba centrado en la muesca que se abre en cada escalón basáltico hasta el abanico en la poza
       const stepW1 = THREE.MathUtils.smoothstep(1.0 - t, 0.22, 0.44) * 0.85;
       const stepW2 = THREE.MathUtils.smoothstep(1.0 - t, 0.48, 0.70) * 1.05;
       const stepW3 = THREE.MathUtils.smoothstep(1.0 - t, 0.72, 0.96) * 0.75;
-      const widthAtT = (1.75 + stepW1 + stepW2 + stepW3) * widthScale;
+      const widthAtT = (1.72 + stepW1 + stepW2 + stepW3) * widthScale;
       const x = xNorm * widthAtT;
 
       const lipArc1 = 0.24 * Math.exp(-Math.pow((t - 0.67) * 8.5, 2));
       const lipArc2 = 0.28 * Math.exp(-Math.pow((t - 0.41) * 8.0, 2));
       const lipArc3 = 0.24 * Math.exp(-Math.pow((t - 0.16) * 7.5, 2));
+      const crestRollBack = -THREE.MathUtils.smoothstep(t, 0.88, 1.0) * 0.42;
       const streamBelly = (1.0 - 4.0 * xNorm * xNorm) * 0.24;
-      const z = this.getCascadeChuteCenterZ(y) + lipArc1 + lipArc2 + lipArc3 + streamBelly + zOffset;
+      const z = this.getCascadeChuteCenterZ(y) + lipArc1 + lipArc2 + lipArc3 + crestRollBack + streamBelly + zOffset;
 
       pos.setXYZ(i, x, y, z);
       uvs.setXY(i, xNorm + 0.5, t);
@@ -1385,9 +1394,9 @@ export class TrailScene {
       { preset: 'oakCloud', theta: -0.78, vBody: 0.96, back: 0.5, s: 1.08, seed: 907 },
       { preset: 'oakCloud', theta: -0.52, vBody: 0.96, back: 0.5, s: 1.06, seed: 911 },
       { preset: 'ashAndean', theta: -0.26, vBody: 0.96, back: 0.7, s: 1.08, seed: 929 },
-      { preset: 'oakCloud', theta: 0.04, vBody: 0.98, back: 1.25, s: 1.18, seed: 937 },
-      { preset: 'shrubOak', theta: -0.06, vBody: 0.98, back: 1.15, s: 1.45, seed: 941 },
-      { preset: 'polylepis', theta: 0.30, vBody: 0.96, back: 0.6, s: 1.06, seed: 947 },
+      { preset: 'oakCloud', theta: 0.21, vBody: 0.96, back: 0.85, s: 1.12, seed: 937 },
+      { preset: 'shrubOak', theta: 0.0, vBody: 0.98, back: 1.75, s: 1.48, seed: 941 },
+      { preset: 'polylepis', theta: 0.36, vBody: 0.96, back: 0.6, s: 1.06, seed: 947 },
       { preset: 'birchAlder', theta: 0.58, vBody: 0.96, back: 0.5, s: 1.04, seed: 953 },
       { preset: 'ashAndean', theta: 0.82, vBody: 0.96, back: 0.5, s: 1.05, seed: 961 },
       { preset: 'shrubOak', theta: -0.34, vBody: 0.92, back: 0.28, s: 1.28, seed: 967 },

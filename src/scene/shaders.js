@@ -225,12 +225,13 @@ export function createWaterfallShaderMaterial(timeUniform, waterTexture, fogColo
         float streamLace = clamp(lumaFast * 0.62 + lumaSlow * 0.52 - 0.08, 0.0, 1.0);
 
         float macroFlow = fbm(vec2(vUv.x * 7.5 + 1.1, vUv.y * 3.0 + uTime * 1.1));
-        float splitShift = (macroFlow - 0.5) * 0.09;
-        // Chorro derecho principal y chorro izquierdo escalonado con hendiduras oscuras entre rocas
-        float rightChute = smoothstep(0.36, 0.50, vUv.x + splitShift) * smoothstep(0.96, 0.78, vUv.x + splitShift);
-        float leftChute = smoothstep(0.08, 0.21, vUv.x - splitShift) * smoothstep(0.39, 0.27, vUv.x - splitShift) * 0.88;
-        float midBreak = 1.0 - 0.55 * exp(-pow((vUv.y - 0.50) * 9.0, 2.0)) * exp(-pow((vUv.x - 0.44) * 9.0, 2.0));
-        float channelWeight = clamp((max(rightChute, leftChute) + 0.16 * smoothstep(0.06, 0.94, vUv.x)) * midBreak, 0.0, 1.0);
+        float splitShift = (macroFlow - 0.5) * 0.07;
+        // Flujo equilibrado y centrado en el cauce (vUv.x = 0.5) con vetas orgánicas a ambos lados
+        float centerEnvelope = smoothstep(0.05, 0.22, vUv.x + splitShift * 0.6) * smoothstep(0.95, 0.78, vUv.x + splitShift * 0.6);
+        float leftBraid = smoothstep(0.14, 0.30, vUv.x + splitShift) * smoothstep(0.56, 0.42, vUv.x + splitShift);
+        float rightBraid = smoothstep(0.44, 0.58, vUv.x - splitShift) * smoothstep(0.86, 0.70, vUv.x - splitShift);
+        float coreStream = exp(-pow((vUv.x - 0.5 + splitShift * 0.5) / 0.26, 2.0));
+        float channelWeight = clamp(centerEnvelope * (0.48 + 0.52 * max(coreStream, max(leftBraid, rightBraid))), 0.0, 1.0);
 
         float topFade = smoothstep(1.0, 0.92, vUv.y);
         float bottomFade = smoothstep(0.0, 0.05, vUv.y);
